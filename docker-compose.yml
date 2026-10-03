@@ -17,6 +17,7 @@ services:
       NEWAPI_KEY: "${NEWAPI_KEY:-}"
       AI_MODEL: "${AI_MODEL:-agy-gemini-3.8-flash-high}"
       PUBLIC_URL: "${PUBLIC_URL:-}"
+      BINDINGS_FILE: "/app/data/bindings.json"
     volumes:
       - ./data:/app/data
-      - "${BINDINGS_FILE:-./data/bindings.json}:/app/data/bindings.json:ro"
+      - "${HOST_BINDINGS_FILE:-./data/bindings.json}:/app/data/bindings.json:ro"
