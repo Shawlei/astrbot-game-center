@@ -1,0 +1,14 @@
+{
+  "name": "astrbot-game-center",
+  "version": "0.1.0",
+  "description": "AstrBot 额度小游戏中心：对战平台（象棋/五子棋）+ 单机小游戏 + 模拟股市 + 管理后台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mysql2": "^3.11.0",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,143 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212b;
+  --border: #2a2f3a;
+  --text: #e7eaf0;
+  --muted: #8b93a7;
+  --accent: #5b8cff;
+  --accent-2: #7c5bff;
+  --green: #3ecf8e;
+  --red: #e05555;
+  --gold: #f0b429;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 12px; }
+a { color: var(--accent); text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+
+/* 登录页 */
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+  padding: 36px 32px; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.logo {
+  width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 700; font-size: 18px;
+}
+.logo.small { width: 28px; height: 28px; border-radius: 8px; font-size: 13px; }
+.login-card h1 { font-size: 20px; margin: 0; }
+.login-card .sub { color: var(--muted); margin: 0; font-size: 13px; }
+input[type="password"], input[type="text"], input[type="number"] {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 10px 12px; font: inherit; width: 100%;
+}
+input:focus { outline: none; border-color: var(--accent); }
+.err { color: var(--red); font-size: 13px; min-height: 18px; }
+
+/* 布局 */
+.app { display: flex; min-height: 100vh; }
+.side {
+  width: 220px; background: var(--panel); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 18px 12px; position: sticky; top: 0; height: 100vh;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; padding: 4px 8px 18px; }
+#nav { display: flex; flex-direction: column; gap: 2px; }
+#nav a {
+  color: var(--muted); padding: 10px 12px; border-radius: 8px; cursor: pointer; user-select: none;
+}
+#nav a:hover { color: var(--text); background: var(--panel-2); }
+#nav a.active { color: #fff; background: var(--accent); }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+
+/* 主区 */
+.main { flex: 1; padding: 24px 28px; max-width: 1100px; }
+.tab h2 { font-size: 20px; margin: 0 0 4px; }
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+
+/* 卡片 */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;
+}
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-size: 22px; font-weight: 600; margin-top: 4px; }
+.card .v.ok { color: var(--green); }
+.card .v.bad { color: var(--red); }
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px;
+}
+
+/* 表单 */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { color: var(--muted); font-size: 12px; }
+.save-row { margin-top: 18px; display: flex; gap: 10px; align-items: center; }
+
+/* 按钮 */
+.btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 600;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn.ghost:hover { background: var(--panel-2); }
+.btn.danger { background: var(--red); }
+
+/* 数据查看子 tab */
+.tabs-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tabs-bar a {
+  color: var(--muted); padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; user-select: none;
+}
+.tabs-bar a.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+/* 表格 */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:hover td { background: var(--panel-2); }
+.up { color: var(--red); }
+.down { color: var(--green); }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); color: var(--muted); }
+
+/* 日志 */
+.logs-actions { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.auto { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.log-box {
+  background: #0a0c10; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; height: 60vh; overflow: auto; font: 12px/1.7 ui-monospace, "SF Mono", Consolas, monospace;
+}
+.log-line { white-space: pre-wrap; word-break: break-all; }
+.log-line .ts { color: var(--muted); margin-right: 8px; }
+.log-line.info { color: #c7ccd8; }
+.log-line.warn { color: var(--gold); }
+.log-line.error { color: var(--red); }
+
+/* toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  padding: 11px 18px; border-radius: 10px; opacity: 0; pointer-events: none; transition: all .25s ease;
+  z-index: 999;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: var(--green); }
+.toast.err { border-color: var(--red); }
+
+@media (max-width: 720px) {
+  .app { flex-direction: column; }
+  .side { width: 100%; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; }
+  #nav { flex-direction: row; flex-wrap: wrap; }
+  .side-foot { margin-top: 0; flex-direction: row; }
+  .main { padding: 16px; }
+}

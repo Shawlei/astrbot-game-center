@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游戏中心</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">🎮 额度游戏中心</div>
+    <span class="badge">真实额度 · 单机 / 联机 / 股市</span>
+  </div>
+
+  <div id="authBar"></div>
+
+  <div class="card" style="margin-bottom:6px">
+    <div style="font-size:13px;color:var(--muted);line-height:1.7">
+      使用你的 <b style="color:var(--text)">NewAPI 账号</b>登录后即可开始（与机器人绑定账号一致），
+      所有游戏用<b style="color:var(--text)">站点真实额度</b>结算：<b style="color:var(--green)">赢了返额度、输了扣额度</b>。
+      余额查询请回群发 <b style="color:var(--text)">%余额</b>。
+    </div>
+  </div>
+
+  <div class="section-title">🎰 单机小游戏</div>
+  <div class="games" id="soloGames"></div>
+
+  <div class="section-title">📈 模拟股市</div>
+  <div class="games" id="marketGames"></div>
+
+  <div class="section-title">⚔️ 联机对战</div>
+  <div class="games" id="pvpGames"></div>
+
+  <div class="section-title">🏆 排行榜</div>
+  <div class="leaderboard">
+    <div class="lb-tabs" id="lbTabs"></div>
+    <div id="lbList"></div>
+  </div>
+
+  <div class="hint" id="hint">本页为大厅入口；实际对战请从群里 bot 发送的带房间链接进入。</div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const gid = new URLSearchParams(location.search).get('gid');
+const q = gid ? ('?gid=' + encodeURIComponent(gid)) : '';
+
+const SOLO_GAMES = [
+  { href: '/snake.html' + q, emoji: '🐍', name: '贪吃蛇', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
+  { href: '/plinko.html' + q, emoji: '🪙', name: '钉板弹珠', desc: '小球下落撞钉，落槽定倍率，边槽高奖。' },
+  { href: '/breakout.html' + q, emoji: '🎮', name: '打砖块', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
+  { href: '/twentyfour.html' + q, emoji: '🧮', name: '24点', desc: '四张牌算出 24，答对赢额、答错扣额。' },
+];
+const MARKET_GAMES = [
+  { href: '/market.html' + q, emoji: '📈', name: '虚拟股市', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
+];
+const PVP_GAMES = [
+  { href: '/xiangqi.html' + q, emoji: '♟️', name: '中国象棋', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
+  { href: '/gomoku.html' + q, emoji: '⚫', name: '五子棋', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
+];
+
+function renderGames(el, games) {
+  el.innerHTML = '';
+  for (const g of games) {
+    const a = document.createElement('a');
+    a.className = 'game-card';
+    a.href = g.href;
+    a.innerHTML = '<div class="emoji">' + g.emoji + '</div><div class="name">' + g.name + '</div><div class="desc">' + g.desc + '</div>';
+    el.appendChild(a);
+  }
+}
+renderGames(document.getElementById('soloGames'), SOLO_GAMES);
+renderGames(document.getElementById('marketGames'), MARKET_GAMES);
+renderGames(document.getElementById('pvpGames'), PVP_GAMES);
+
+// ---- 登录条 ----
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+// ---- 排行榜 ----
+const LB = [
+  { key: 'snake', label: '贪吃蛇', type: 'solo' },
+  { key: 'plinko', label: '钉板弹珠', type: 'solo' },
+  { key: 'breakout', label: '打砖块', type: 'solo' },
+  { key: 'twentyfour', label: '24点', type: 'solo' },
+  { key: 'xiangqi', label: '象棋', type: 'pvp' },
+  { key: 'gomoku', label: '五子棋', type: 'pvp' },
+  { key: 'market', label: '股市', type: 'market' },
+];
+const tabsEl = document.getElementById('lbTabs');
+const listEl = document.getElementById('lbList');
+
+LB.forEach((t, i) => {
+  const b = document.createElement('button');
+  b.className = 'lb-tab' + (i === 0 ? ' active' : '');
+  b.textContent = t.label;
+  b.onclick = () => loadLB(i);
+  tabsEl.appendChild(b);
+});
+
+function lbRow(rank, name, val, sub) {
+  const div = document.createElement('div');
+  div.className = 'lb-row';
+  div.innerHTML =
+    '<div class="lb-rank' + (rank < 3 ? ' top' : '') + '">' + (rank + 1) + '</div>' +
+    '<div class="lb-name">' + escapeHtml(name) + '</div>' +
+    (sub ? '<div class="lb-sub">' + sub + '</div>' : '') +
+    (val ? '<div class="lb-val">' + val + '</div>' : '');
+  return div;
+}
+
+async function loadLB(idx) {
+  document.querySelectorAll('.lb-tab').forEach((b, i) => b.classList.toggle('active', i === idx));
+  const t = LB[idx];
+  listEl.innerHTML = '<div class="lb-empty">加载中…</div>';
+  try {
+    let rows = [];
+    if (t.type === 'market') {
+      const j = await (await fetch('/api/market/leaderboard?limit=20')).json();
+      rows = (j.list || []).map((r) => ({
+        name: r.name, val: '$' + r.marketValue.toFixed(2), sub: r.stocks + ' 只 · 盈亏 ' + fmtUsd(r.pnl),
+      }));
+    } else {
+      const j = await (await fetch('/api/leaderboard?gameType=' + t.key + '&limit=20')).json();
+      rows = (j.list || []).map((r) => t.type === 'solo'
+        ? { name: r.name, val: fmtUsd(r.netUsd), sub: r.games + '局 · 最高' + fmtUsd(r.bestUsd) }
+        : { name: r.name, val: r.win + ' 胜', sub: r.win + '胜 ' + r.lose + '负' + (r.draw ? ' ' + r.draw + '平' : '') });
+    }
+    if (!rows.length) { listEl.innerHTML = '<div class="lb-empty">暂无记录，快去玩一局吧</div>'; return; }
+    listEl.innerHTML = '';
+    rows.forEach((r, i) => listEl.appendChild(lbRow(i, r.name, r.val, r.sub)));
+  } catch (e) {
+    listEl.innerHTML = '<div class="lb-empty">排行榜加载失败</div>';
+  }
+}
+
+function fmtUsd(n) {
+  const v = Number(n || 0);
+  return (v >= 0 ? '+' : '') + '$' + v.toFixed(2);
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+if (gid) {
+  document.getElementById('hint').textContent = '进入游戏后使用 NewAPI 账号登录即可开始；邀请对战会由机器人回到群里广播。';
+}
+loadLB(0);
+</script>
+</body>
+</html>

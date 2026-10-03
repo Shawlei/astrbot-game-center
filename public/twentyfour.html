@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24点</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🧮 24点</div>
+    </div>
+    <span class="badge" id="betBadge">押注 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">用给出的 4 个数字，通过 + − × ÷ 与括号算出 24（每个数字用一次）。答对返 2 倍，答错扣押注。</div>
+
+    <div class="puzzle" id="puzzle" style="display:none"></div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="押注美元（10~200）" min="10" max="200" value="10">
+      </div>
+      <div class="row">
+        <input id="expr" type="text" placeholder="表达式，如 8/(3-8/3)" autocomplete="off">
+      </div>
+      <button id="btnNew" class="primary">出新题</button>
+      <button id="btnSubmit" class="primary" style="display:none">提交答案</button>
+      <div class="tip">先点「出新题」看到题目，再填写表达式与押注后提交；提交即扣款判定。</div>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">点「出新题」开始</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000;
+let sessionId = null;
+let numbers = null;
+let busy = false;
+
+const puzzleEl = document.getElementById('puzzle');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const btnNew = document.getElementById('btnNew');
+const btnSubmit = document.getElementById('btnSubmit');
+
+fetch('/api/health').then((r) => r.json()).then((j) => {
+  if (j.minBet) minBet = j.minBet;
+  if (j.maxBet) maxBet = j.maxBet;
+  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+  document.getElementById('betBadge').textContent = '押注 $' + minBet + '~$' + maxBet;
+  document.getElementById('bet').min = minBet;
+  document.getElementById('bet').max = maxBet;
+  document.getElementById('bet').value = minBet;
+}).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'), () => {
+  GCAuth.me().then((m) => { if (m) setStatus('登录成功，点「出新题」开始'); });
+});
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, data: await r.json() };
+}
+
+async function newPuzzle() {
+  const { status, data } = await post('/api/solo/twentyfour/new', {});
+  if (status !== 200 || data.code !== 'ok') { setStatus(data.error || '出题失败'); return; }
+  sessionId = data.sessionId;
+  numbers = data.numbers;
+  resultEl.style.display = 'none';
+  puzzleEl.style.display = 'flex';
+  puzzleEl.innerHTML = '';
+  for (const n of numbers) {
+    const d = document.createElement('div');
+    d.className = 'num';
+    d.textContent = n;
+    puzzleEl.appendChild(d);
+  }
+  btnSubmit.style.display = 'inline-block';
+  document.getElementById('expr').value = '';
+  setStatus('请填写表达式（每个数字用一次），并输入押注后提交');
+}
+
+async function submit() {
+  if (busy || !sessionId) { alert('请先点「出新题」'); return; }
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  const expression = document.getElementById('expr').value.trim();
+  if (!(bet >= minBet && bet <= maxBet)) { alert('押注金额需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+  if (!expression) { alert('请输入表达式'); return; }
+
+  busy = true;
+  btnSubmit.disabled = true;
+  const { status, data } = await post('/api/solo/twentyfour/submit', { sessionId, token, bet, expression });
+  busy = false;
+  btnSubmit.disabled = false;
+
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+
+  resultEl.style.display = 'block';
+  let html = '';
+  if (data.win) {
+    html += '<div class="big win">🎉 回答正确！</div>';
+    html += '<div>' + data.numbers.join('、') + ' = 24，本局净赚 <b style="color:var(--green)">$' + data.netUsd.toFixed(2) + '</b></div>';
+  } else {
+    html += '<div class="big lose">回答错误</div>';
+    html += '<div>' + escapeHtml(data.expression) + ' ≠ 24，本局 <b style="color:var(--red)">-$' + Math.abs(data.netUsd).toFixed(2) + '</b></div>';
+  }
+  if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  sessionId = null;
+  btnSubmit.style.display = 'none';
+  setStatus('点击「出新题」再来一局');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+btnNew.onclick = newPuzzle;
+btnSubmit.onclick = submit;
+</script>
+</body>
+</html>

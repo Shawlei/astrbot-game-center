@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>打砖块</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+#stage { display: flex; justify-content: center; }
+#board {
+  display: block; margin: 0 auto;
+  background: linear-gradient(180deg, #141a33 0%, #0d1124 100%);
+  border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  touch-action: none; cursor: crosshair; max-width: 100%;
+}
+.hud {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 10px 0 4px; font-size: 15px; font-weight: 700;
+}
+.hud .score { color: var(--gold); font-variant-numeric: tabular-nums; }
+.hud .level { color: var(--accent); font-variant-numeric: tabular-nums; }
+.hud .lives { color: var(--red); letter-spacing: 2px; }
+.legend { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.7; }
+.legend .pk { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 3px 0 8px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🎮 打砖块</div>
+    </div>
+    <span class="badge" id="betBadge">门票 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">移动底部横板反弹小球，打落上方方块。打落带光点的方块会掉落道具：<b style="color:#2dd4bf">宽</b>加宽横板、<b style="color:#b16cff">慢</b>小球减速、<b style="color:var(--gold)">★</b>额外 +50 分。共 3 条命，清空一波会自动刷新更密的一波（球更快、横板更短），分数累加，奖励最高 10 倍。</div>
+
+    <div id="stage"><canvas id="board" width="480" height="600"></canvas></div>
+    <div class="hud">
+      <span class="score" id="scoreEl">得分：0</span>
+      <span class="level" id="levelEl">第 1 波</span>
+      <span class="lives" id="livesEl">❤❤❤</span>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="门票美元（10~200）" min="10" max="200" value="10">
+      </div>
+      <button id="btnStart" class="primary">开始游戏</button>
+      <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
+      <div class="tip">开始即扣门票额度。清空一波会自动刷新更密的一波、分数累加，直到 3 条命用完。倍率档：≥20 分 0.5x、≥60 分 0.8x、≥120 分 1.2x、≥200 分 2x、≥300 分 3x、≥400 分 5x、≥500 分 6x、≥1000 分 8x、≥1600 分 10x。</div>
+      <div class="legend">键盘 ◀ ▶ 或 A/D 移动，鼠标 / 手指在画布上滑动控制横板。</div>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">登录后点「开始游戏」</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script src="/js/breakout-core.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+const C = window.BreakoutCore;
+const W = C.W, H = C.H;
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000;
+let sessionId = null;
+let running = false;
+let over = false;
+
+const boardEl = document.getElementById('board');
+const ctx = boardEl.getContext('2d');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const scoreEl = document.getElementById('scoreEl');
+const livesEl = document.getElementById('livesEl');
+const levelEl = document.getElementById('levelEl');
+
+// ---- 游戏状态（由 breakout-core 驱动） ----
+let state = null;
+let targetXs = [];
+let targetX = W / 2;
+let pointerActive = false;
+let keys = { left: false, right: false };
+const KEY_SPEED = 11; // 每帧（1/60s）横板位移
+
+// ---- 配色 ----
+const ROW_COLORS = ['#ff5d6c', '#ff9f43', '#feca57', '#3ecf8e', '#54a0ff', '#b16cff'];
+const POWER_STYLE = {
+  wide: { color: '#2dd4bf', label: '宽' },
+  slow: { color: '#b16cff', label: '慢' },
+  extra: { color: '#f0b429', label: '★' },
+};
+
+fetch('/api/health').then((r) => r.json()).then((j) => {
+  if (j.minBet) minBet = j.minBet;
+  if (j.maxBet) maxBet = j.maxBet;
+  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+  document.getElementById('betBadge').textContent = '门票 $' + minBet + '~$' + maxBet;
+  const b = document.getElementById('bet'); b.min = minBet; b.max = maxBet; b.value = minBet;
+}).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, data: await r.json() };
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  if (!state) return;
+
+  // 方块
+  for (const br of state.bricks) {
+    if (!br.alive) continue;
+    const color = ROW_COLORS[br.row % ROW_COLORS.length];
+    ctx.fillStyle = color;
+    roundRect(br.x, br.y, br.w, br.h, 4);
+    ctx.fill();
+    // 顶部高光
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.fillRect(br.x + 3, br.y + 3, br.w - 6, 3);
+    // 道具砖标记
+    if (br.power) {
+      const st = POWER_STYLE[br.power];
+      ctx.fillStyle = st.color;
+      ctx.beginPath();
+      ctx.arc(br.x + br.w / 2, br.y + br.h / 2, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(st.label, br.x + br.w / 2, br.y + br.h / 2 + 0.5);
+    }
+  }
+
+  // 掉落道具
+  for (const p of state.powerups) {
+    const st = POWER_STYLE[p.type];
+    ctx.fillStyle = st.color;
+    roundRect(p.x - 9, p.y - 7, 18, 14, 5);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(st.label, p.x, p.y + 0.5);
+  }
+
+  // 横板
+  const p = state.paddle;
+  const pg = ctx.createLinearGradient(p.x - p.w / 2, 0, p.x + p.w / 2, 0);
+  pg.addColorStop(0, '#6c7cff');
+  pg.addColorStop(1, '#b16cff');
+  ctx.fillStyle = pg;
+  roundRect(p.x - p.w / 2, C.PADDLE_Y, p.w, C.PADDLE_H, C.PADDLE_H / 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  roundRect(p.x - p.w / 2 + 3, C.PADDLE_Y + 2, p.w - 6, 4, 3);
+  ctx.fill();
+
+  // 小球
+  if (state.ball) {
+    const b = state.ball;
+    const glow = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, C.BALL_R + 6);
+    glow.addColorStop(0, 'rgba(255,255,255,.9)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, C.BALL_R + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, C.BALL_R, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  scoreEl.textContent = '得分：' + state.score;
+  levelEl.textContent = '第 ' + state.level + ' 波';
+  livesEl.textContent = '❤'.repeat(Math.max(0, state.lives)) + '🖤'.repeat(Math.max(0, C.LIVES - state.lives));
+}
+
+// ---- 主循环：固定 1/60s 步长 + rAF 累加 ----
+let last = 0, acc = 0;
+const STEP = 1000 / 60;
+function loop(now) {
+  if (!running) return;
+  if (!last) last = now;
+  acc += now - last; last = now;
+  while (acc >= STEP) {
+    acc -= STEP;
+    tick();
+    if (over) break;
+  }
+  render();
+  if (!over) requestAnimationFrame(loop);
+  else settle();
+}
+
+function tick() {
+  if (over) return;
+  if (!pointerActive) {
+    if (keys.left) targetX -= KEY_SPEED;
+    if (keys.right) targetX += KEY_SPEED;
+    targetX = Math.max(0, Math.min(W, targetX));
+  }
+  targetXs.push(targetX);
+  C.step(state, targetX);
+  if (state.over) over = true;
+  else if (targetXs.length >= C.MAX_TICKS) over = true; // 达回放上限自动结算，避免与服务端截断不一致
+}
+
+async function settle() {
+  if (sessionId == null) return;
+  running = false;
+  const id = sessionId;
+  sessionId = null;
+  setStatus('结算中…');
+  const { status, data } = await post('/api/solo/breakout/end', { sessionId: id, targetXs });
+  showResult(status, data);
+}
+
+function showResult(status, data) {
+  document.getElementById('btnEnd').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-block';
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+  resultEl.style.display = 'block';
+  const lv = data.level || 1;
+  const head = (data.lives <= 0 ? '💔 生命耗尽' : '⏹ 提前结束') + ' · 坚持到第 ' + lv + ' 波';
+  let html = '<div class="big" style="color:' + (data.mult >= 1 ? 'var(--green)' : 'var(--red)') + '">' + head + ' ' + data.score + ' 分 · ' + data.mult + 'x</div>';
+  const net = data.netUsd;
+  html += '<div>门票 $' + data.bet.toFixed(2) + '，本局 ' + (net >= 0 ? '净赚 <b style="color:var(--green)">+$' + net.toFixed(2) + '</b>' : '净亏 <b style="color:var(--red)">-$' + Math.abs(net).toFixed(2) + '</b>') + '</div>';
+  if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  setStatus('点击「开始游戏」再来一局');
+}
+
+async function start() {
+  if (running) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  if (!(bet >= minBet && bet <= maxBet)) { alert('门票需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+
+  const { status, data } = await post('/api/solo/breakout/start', { token, bet });
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+
+  sessionId = data.sessionId;
+  state = C.createGame(data.seed);
+  targetXs = [];
+  targetX = W / 2;
+  pointerActive = false;
+  keys.left = keys.right = false;
+  over = false;
+  resultEl.style.display = 'none';
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnEnd').style.display = 'inline-block';
+  running = true;
+  last = 0; acc = 0;
+  render();
+  setStatus('游戏中：移动横板反弹小球');
+  requestAnimationFrame(loop);
+}
+
+function endManually() {
+  if (!running || over) return;
+  over = true;
+  settle();
+}
+
+// ---- 输入 ----
+function toGameX(clientX) {
+  const r = boardEl.getBoundingClientRect();
+  return Math.max(0, Math.min(W, (clientX - r.left) / r.width * W));
+}
+boardEl.addEventListener('pointermove', (e) => { pointerActive = true; targetX = toGameX(e.clientX); });
+boardEl.addEventListener('pointerdown', (e) => { pointerActive = true; targetX = toGameX(e.clientX); });
+boardEl.addEventListener('touchmove', (e) => {
+  if (e.touches.length) { pointerActive = true; targetX = toGameX(e.touches[0].clientX); }
+}, { passive: true });
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); keys.left = true; pointerActive = false; }
+  else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); keys.right = true; pointerActive = false; }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+  else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+});
+
+document.getElementById('btnStart').onclick = start;
+document.getElementById('btnEnd').onclick = endManually;
+</script>
+</body>
+</html>

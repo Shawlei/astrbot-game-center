@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>钉板弹珠</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+#stage { display: flex; justify-content: center; }
+#board { display: block; background: linear-gradient(180deg, #1b2140 0%, #12162a 100%); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.peg { fill: url(#pegG); }
+.slot { stroke: rgba(0,0,0,.4); stroke-width: 1; }
+.slot.hit { stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 6px rgba(240,180,41,.8)); }
+.slot-mult { font-weight: 800; }
+.slot-idx { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.ball { fill: url(#ballG); }
+.result-box .big { font-size: 28px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🪙 钉板弹珠</div>
+    </div>
+    <span class="badge" id="betBadge">门票 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">小球从顶部落下，随机撞击钉子左右弹跳，最终落入底部 9 个槽位之一。越靠边的槽倍率越高（最高 8 倍），中间倍率低。</div>
+
+    <div id="stage"><svg id="board" viewBox="0 0 340 480" width="min(340px, 92vw)"></svg></div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="门票美元（10~200）" min="10" max="200" value="10">
+      </div>
+      <button id="btnDrop" class="primary">投放小球</button>
+      <div class="tip">投放即扣门票额度，按落槽倍率返奖：边槽 8 倍、次边 2.5 倍、再内 1.2 倍、内槽 0.6/0.4 倍。</div>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">登录后投放小球开始</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000;
+let busy = false;
+const boardEl = document.getElementById('board');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+
+const SLOT_X = (s) => 34 + s * 34;
+const ROWS = 8;
+const MULTS = [8, 2.5, 1.2, 0.6, 0.4, 0.6, 1.2, 2.5, 8];
+
+function slotColor(mult) {
+  if (mult >= 4) return '#f0b429';
+  if (mult >= 2) return '#e88a3a';
+  if (mult >= 1) return '#6c7cff';
+  return '#3a4058';
+}
+
+fetch('/api/health').then((r) => r.json()).then((j) => {
+  if (j.minBet) minBet = j.minBet;
+  if (j.maxBet) maxBet = j.maxBet;
+  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+  document.getElementById('betBadge').textContent = '门票 $' + minBet + '~$' + maxBet;
+  const b = document.getElementById('bet'); b.min = minBet; b.max = maxBet; b.value = minBet;
+}).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+// 绘制钉子（三角锥形）、底部 9 槽与渐变定义
+function drawBoard() {
+  let svg = '';
+  svg += '<defs>' +
+    '<radialGradient id="pegG" cx="35%" cy="30%" r="70%">' +
+      '<stop offset="0%" stop-color="#dbe0ff"/><stop offset="100%" stop-color="#5a66c8"/>' +
+    '</radialGradient>' +
+    '<radialGradient id="ballG" cx="35%" cy="30%" r="70%">' +
+      '<stop offset="0%" stop-color="#ffe9a8"/><stop offset="60%" stop-color="#f0b429"/><stop offset="100%" stop-color="#c8841a"/>' +
+    '</radialGradient>' +
+  '</defs>';
+  for (let r = 0; r < ROWS; r++) {
+    const y = 56 + r * 40;
+    for (let j = 0; j <= r; j++) {
+      const x = 170 - r * 17 + j * 34;
+      svg += '<circle class="peg" cx="' + x + '" cy="' + y + '" r="6"></circle>';
+    }
+  }
+  for (let s = 0; s < 9; s++) {
+    const x = SLOT_X(s);
+    const c = slotColor(MULTS[s]);
+    svg += '<rect class="slot" data-slot="' + s + '" x="' + (x - 15) + '" y="' + 402 + '" width="30" height="56" rx="6" fill="' + c + '"></rect>';
+    svg += '<text class="slot-mult" x="' + x + '" y="' + 424 + '" fill="#14182a" text-anchor="middle" font-size="12">' + MULTS[s] + 'x</text>';
+    svg += '<text class="slot-idx" x="' + x + '" y="' + 446 + '">' + s + '</text>';
+  }
+  boardEl.innerHTML = svg;
+}
+drawBoard();
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, data: await r.json() };
+}
+
+// 平滑动画：球沿折线路径（逐层碰撞点 + 最终落槽）requestAnimationFrame 插值
+function animateBall(path, slot) {
+  const pts = [{ x: 170, y: 24 }];
+  let x = 170;
+  for (let r = 0; r < path.length; r++) {
+    x += path[r] * 17;
+    pts.push({ x, y: 56 + r * 40 + 6 });
+  }
+  pts.push({ x: SLOT_X(slot), y: 398 });
+
+  const ball = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  ball.setAttribute('class', 'ball');
+  ball.setAttribute('r', 8);
+  ball.setAttribute('cx', pts[0].x);
+  ball.setAttribute('cy', pts[0].y);
+  boardEl.appendChild(ball);
+
+  return new Promise((resolve) => {
+    const DURATION = 1150;
+    const start = performance.now();
+    const easeIn = (t) => t * t; // 加速下落，贴近重力感
+    function frame(now) {
+      let t = (now - start) / DURATION;
+      if (t >= 1) t = 1;
+      const et = easeIn(t);
+      const seg = et * (pts.length - 1);
+      const i = Math.min(Math.floor(seg), pts.length - 2);
+      const f = seg - i;
+      ball.setAttribute('cx', pts[i].x + (pts[i + 1].x - pts[i].x) * f);
+      ball.setAttribute('cy', pts[i].y + (pts[i + 1].y - pts[i].y) * f);
+      if (t < 1) requestAnimationFrame(frame);
+      else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+async function drop() {
+  if (busy) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  if (!(bet >= minBet && bet <= maxBet)) { alert('门票需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+
+  busy = true;
+  document.getElementById('btnDrop').disabled = true;
+  resultEl.style.display = 'none';
+  // 清理上一局的球与落槽高亮（修复残留 bug）
+  boardEl.querySelectorAll('.ball').forEach((el) => el.remove());
+  boardEl.querySelectorAll('.slot.hit').forEach((el) => el.classList.remove('hit'));
+  setStatus('小球下落中…');
+
+  const { status, data } = await post('/api/solo/plinko', { token, bet });
+  if (status !== 200) {
+    busy = false; document.getElementById('btnDrop').disabled = false;
+    setStatus(data.error || '出错了'); return;
+  }
+
+  await animateBall(data.path, data.slot);
+  document.querySelector('.slot[data-slot="' + data.slot + '"]').classList.add('hit');
+
+  let html = '<div class="big" style="color:' + (data.mult >= 1 ? 'var(--green)' : 'var(--red)') + '">落槽 ' + data.slot + ' · ' + data.mult + 'x</div>';
+  const net = data.netUsd;
+  html += '<div>门票 $' + data.bet.toFixed(2) + '，本局 ' + (net >= 0 ? '净赚 <b style="color:var(--green)">+$' + net.toFixed(2) + '</b>' : '净亏 <b style="color:var(--red)">-$' + Math.abs(net).toFixed(2) + '</b>') + '</div>';
+  if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  resultEl.style.display = 'block';
+
+  busy = false;
+  document.getElementById('btnDrop').disabled = false;
+  setStatus('点击「投放小球」再来一局');
+}
+
+document.getElementById('btnDrop').onclick = drop;
+</script>
+</body>
+</html>

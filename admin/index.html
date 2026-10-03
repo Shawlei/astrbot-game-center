@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏中心管理后台</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="login" class="login">
+    <form class="login-card" id="loginForm">
+      <div class="logo">GC</div>
+      <h1>游戏中心管理后台</h1>
+      <p class="sub">额度小游戏中心 · 控制台</p>
+      <input type="password" id="pw" placeholder="管理员密码" autocomplete="current-password">
+      <button type="submit" id="btnLogin">登录</button>
+      <div id="loginErr" class="err"></div>
+    </form>
+  </div>
+
+  <div id="app" class="app hidden">
+    <aside class="side">
+      <div class="brand"><span class="logo small">GC</span>游戏中心</div>
+      <nav id="nav">
+        <a data-tab="dash" class="active">仪表盘</a>
+        <a data-tab="config">运行配置</a>
+        <a data-tab="api">API 配置</a>
+        <a data-tab="news">新闻设置</a>
+        <a data-tab="data">数据查看</a>
+        <a data-tab="logs">日志</a>
+      </nav>
+      <div class="side-foot">
+        <button id="btnRestart" class="btn ghost">重启服务</button>
+        <button id="btnLogout" class="btn ghost">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="tab-dash" class="tab">
+        <h2>仪表盘</h2>
+        <div id="dashCards" class="cards"></div>
+        <div id="dashExtra" class="panel"></div>
+      </section>
+
+      <section id="tab-config" class="tab hidden">
+        <h2>运行配置</h2>
+        <p class="hint">修改后点击保存，需重启服务生效。敏感项不会出现在 Git 仓库中。</p>
+        <div id="form-config" class="form-grid"></div>
+      </section>
+
+      <section id="tab-api" class="tab hidden">
+        <h2>API 配置</h2>
+        <p class="hint">NewAPI 站点与远程 MySQL（额度库）连接信息。</p>
+        <div id="form-api" class="form-grid"></div>
+      </section>
+
+      <section id="tab-news" class="tab hidden">
+        <h2>新闻设置</h2>
+        <p class="hint">AI 新闻事件调度与管理员密码。</p>
+        <div id="form-news" class="form-grid"></div>
+      </section>
+
+      <section id="tab-data" class="tab hidden">
+        <h2>数据查看</h2>
+        <div class="tabs-bar">
+          <a data-sub="users" class="active">用户持仓</a>
+          <a data-sub="game">游戏排行</a>
+          <a data-sub="market">股市排行</a>
+          <a data-sub="bindings">绑定关系</a>
+        </div>
+        <div id="dataBody" class="panel"></div>
+      </section>
+
+      <section id="tab-logs" class="tab hidden">
+        <h2>日志</h2>
+        <div class="logs-actions">
+          <button id="btnRefreshLogs" class="btn">刷新</button>
+          <label class="auto"><input type="checkbox" id="autoLogs" checked> 自动刷新</label>
+          <span id="logCount" class="muted"></span>
+        </div>
+        <div id="logBox" class="log-box"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

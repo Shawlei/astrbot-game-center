@@ -1,0 +1,29 @@
+{
+  "port": 46110,
+  "adminPort": 46111,
+  "adminPassword": "change-me",
+  "publicUrl": "http://your-server:46110",
+  "quotaPerUnit": 500000,
+  "minBet": 10,
+  "maxBet": 200,
+  "turnTimeoutMs": 180000,
+  "bindingsFile": "/app/data/bindings.json",
+  "statsFile": "/app/data/stats.json",
+  "portfolioFile": "/app/data/portfolio.json",
+  "reversalsFile": "/app/data/reversals.json",
+  "newapiBase": "https://your-newapi.example.com",
+  "newapiKey": "",
+  "aiModel": "agy-gemini-3.8-flash-high",
+  "mysql": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "newapi",
+    "password": "",
+    "database": "new-api"
+  },
+  "news": {
+    "dailyMin": 4,
+    "dailyMax": 24,
+    "ttlHours": 6
+  }
+}

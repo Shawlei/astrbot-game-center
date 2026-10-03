@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>贪吃蛇</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+#board { display: block; margin: 0 auto; background: #11151f; border: 1px solid var(--border); border-radius: 12px; image-rendering: pixelated; touch-action: none; }
+.ctrl { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; }
+.dpad {
+  width: 58px; height: 58px; font-size: 22px; border-radius: 14px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  transition: transform .06s ease, background .12s ease;
+}
+.dpad:active { background: var(--accent); color: #fff; transform: scale(.94); }
+.dpad-row { display: flex; gap: 6px; align-items: center; }
+.dpad-center { width: 58px; height: 58px; border-radius: 50%; background: rgba(108,124,255,.08); }
+.scoreboard { text-align: center; font-size: 18px; font-weight: 700; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🐍 贪吃蛇</div>
+    </div>
+    <span class="badge" id="betBadge">门票 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">方向键 / WASD / 滑动屏幕控制方向，吃食物越长得分越高。撞墙或撞自己即结束，按吃食数档返奖（最高 5 倍）。</div>
+
+    <canvas id="board" width="300" height="300"></canvas>
+    <div class="scoreboard" id="score">得分：0</div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="门票美元（10~200）" min="10" max="200" value="10">
+      </div>
+      <button id="btnStart" class="primary">开始游戏</button>
+      <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
+      <div class="tip">开始即扣门票额度。倍率档：≥3 个 0.5x、≥6 个 0.8x、≥10 个 1.2x、≥15 个 2x、≥20 个 3x、≥30 个 5x。</div>
+    </div>
+
+    <div class="ctrl" id="ctrl" style="display:none">
+      <button class="dpad" data-dir="U">▲</button>
+      <div class="dpad-row">
+        <button class="dpad" data-dir="L">◀</button>
+        <div class="dpad-center"></div>
+        <button class="dpad" data-dir="R">▶</button>
+      </div>
+      <button class="dpad" data-dir="D">▼</button>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">登录后点「开始游戏」</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000;
+let sessionId = null;
+let running = false;
+let over = false;
+const boardEl = document.getElementById('board');
+const ctx = boardEl.getContext('2d');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const scoreEl = document.getElementById('score');
+
+// ---- 与 server.js solo.js 完全一致的确定性逻辑 ----
+const W = 15, H = 15, CELL = boardEl.width / W;
+const DIR_DELTA = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
+const OPP = { U: 'D', D: 'U', L: 'R', R: 'L' };
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function snakeSpawnFood(snake, rng) {
+  const occ = new Set(snake.map((s) => s.x + ',' + s.y));
+  if (occ.size >= W * H) return null;
+  for (let tries = 0; tries < 500; tries++) {
+    const x = Math.floor(rng() * W);
+    const y = Math.floor(rng() * H);
+    if (!occ.has(x + ',' + y)) return { x, y };
+  }
+  return null;
+}
+
+let snake, dir, pending, food, score, dirs, rng, timer;
+
+fetch('/api/health').then((r) => r.json()).then((j) => {
+  if (j.minBet) minBet = j.minBet;
+  if (j.maxBet) maxBet = j.maxBet;
+  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+  document.getElementById('betBadge').textContent = '门票 $' + minBet + '~$' + maxBet;
+  const b = document.getElementById('bet'); b.min = minBet; b.max = maxBet; b.value = minBet;
+}).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, data: await r.json() };
+}
+
+function setDir(d) {
+  if (!running || over) return;
+  if (d !== dir && d !== OPP[dir]) pending = d;
+}
+
+function render() {
+  ctx.fillStyle = '#11151f';
+  ctx.fillRect(0, 0, boardEl.width, boardEl.height);
+  // 网格
+  ctx.strokeStyle = 'rgba(255,255,255,.04)';
+  for (let i = 1; i < W; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, boardEl.height); ctx.stroke(); }
+  for (let i = 1; i < H; i++) { ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(boardEl.width, i * CELL); ctx.stroke(); }
+  // 食物
+  if (food) {
+    ctx.fillStyle = '#f0b429';
+    ctx.beginPath();
+    ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 蛇
+  snake.forEach((s, i) => {
+    ctx.fillStyle = i === 0 ? '#3ecf8e' : '#2aa874';
+    ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);
+  });
+  scoreEl.textContent = '得分：' + score;
+}
+
+function step() {
+  if (over) return;
+  if (pending) { dir = pending; pending = null; }
+  dirs.push(dir);
+  const [dx, dy] = DIR_DELTA[dir];
+  const head = snake[0];
+  const nx = head.x + dx, ny = head.y + dy;
+  if (nx < 0 || ny < 0 || nx >= W || ny >= H) { gameOver(); return; }
+  const body = snake.slice(0, snake.length - 1);
+  if (body.some((s) => s.x === nx && s.y === ny)) { gameOver(); return; }
+  snake.unshift({ x: nx, y: ny });
+  if (food && nx === food.x && ny === food.y) {
+    score++;
+    food = snakeSpawnFood(snake, rng);
+    if (food === null) { gameOver(); return; }
+  } else {
+    snake.pop();
+  }
+  render();
+}
+
+async function gameOver() {
+  if (over) return;
+  over = true;
+  running = false;
+  clearInterval(timer);
+  render();
+  setStatus('结算中…');
+  const { status, data } = await post('/api/solo/snake/end', { sessionId, dirs });
+  showResult(status, data);
+}
+
+async function endManually() {
+  if (!running || over) return;
+  over = true;
+  running = false;
+  clearInterval(timer);
+  setStatus('结算中…');
+  const { status, data } = await post('/api/solo/snake/end', { sessionId, dirs });
+  showResult(status, data);
+}
+
+function showResult(status, data) {
+  document.getElementById('ctrl').style.display = 'none';
+  document.getElementById('btnEnd').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-block';
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+  resultEl.style.display = 'block';
+  let html = '<div class="big" style="color:' + (data.mult >= 1 ? 'var(--green)' : 'var(--red)') + '">吃了 ' + data.score + ' 个 · ' + data.mult + 'x</div>';
+  const net = data.netUsd;
+  html += '<div>门票 $' + data.bet.toFixed(2) + '，本局 ' + (net >= 0 ? '净赚 <b style="color:var(--green)">+$' + net.toFixed(2) + '</b>' : '净亏 <b style="color:var(--red)">-$' + Math.abs(net).toFixed(2) + '</b>') + '</div>';
+  if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  setStatus('点击「开始游戏」再来一局');
+}
+
+async function start() {
+  if (running) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  if (!(bet >= minBet && bet <= maxBet)) { alert('门票需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+
+  const { status, data } = await post('/api/solo/snake/start', { token, bet });
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+
+  sessionId = data.sessionId;
+  rng = mulberry32(data.seed);
+  snake = [{ x: 7, y: 7 }, { x: 6, y: 7 }, { x: 5, y: 7 }];
+  dir = 'R'; pending = null;
+  score = 0; dirs = []; over = false;
+  food = snakeSpawnFood(snake, rng);
+  resultEl.style.display = 'none';
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnEnd').style.display = 'inline-block';
+  document.getElementById('ctrl').style.display = 'flex';
+  running = true;
+  render();
+  setStatus('游戏中，方向键/滑动控制');
+  timer = setInterval(step, 150);
+}
+
+// ---- 输入 ----
+document.addEventListener('keydown', (e) => {
+  const map = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', w: 'U', s: 'D', a: 'L', d: 'R' };
+  const d = map[e.key];
+  if (d) { e.preventDefault(); setDir(d); }
+});
+let tsx = 0, tsy = 0;
+boardEl.addEventListener('touchstart', (e) => { const t = e.touches[0]; tsx = t.clientX; tsy = t.clientY; }, { passive: true });
+boardEl.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  const dx = t.clientX - tsx, dy = t.clientY - tsy;
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+  if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 'R' : 'L');
+  else setDir(dy > 0 ? 'D' : 'U');
+  tsx = t.clientX; tsy = t.clientY;
+}, { passive: true });
+document.querySelectorAll('#ctrl button').forEach((b) => {
+  b.addEventListener('click', () => setDir(b.dataset.dir));
+});
+
+document.getElementById('btnStart').onclick = start;
+document.getElementById('btnEnd').onclick = endManually;
+</script>
+</body>
+</html>

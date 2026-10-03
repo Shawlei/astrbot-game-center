@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中国象棋对战</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+#board {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  width: min(520px, 92vw);
+  aspect-ratio: 9 / 11;
+  background: #d9b98a;
+  border: 2px solid #8a5a2b;
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+.cell {
+  position: relative;
+  border-right: 1px solid rgba(138,90,43,.35);
+  border-bottom: 1px solid rgba(138,90,43,.35);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.cell:nth-child(9n) { border-right: none; }
+.river {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: center;
+  gap: 30px; font-size: 15px; font-weight: 700; color: #8a5a2b;
+  letter-spacing: 2px; border-bottom: 1px solid rgba(138,90,43,.35);
+  background: rgba(255,255,255,.15);
+}
+.piece {
+  width: 78%; height: 78%;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(13px, 3.4vw, 19px); font-weight: 700;
+  border: 2px solid #5a3a18;
+  background: radial-gradient(circle at 35% 30%, #fff6e6, #f3dfae);
+  color: #a32822;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  pointer-events: none;
+}
+.piece.black { color: #23272f; }
+.cell.selected { background: rgba(108,124,255,.35); }
+.cell.target { background: rgba(62,207,142,.45); }
+.cell.target::after {
+  content: ''; position: absolute; width: 26%; height: 26%;
+  border-radius: 50%; background: rgba(62,207,142,.8);
+}
+.timer { text-align: center; font-size: 13px; color: var(--gold); margin-top: 8px; font-variant-numeric: tabular-nums; min-height: 20px; }
+.timer.urgent { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">♟️ 中国象棋</div>
+    </div>
+    <span class="badge" id="betBadge"></span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta" id="meta"></div>
+    <div class="board-wrap"><div id="board"></div></div>
+    <div class="timer" id="timer"></div>
+    <div class="panel" id="panel" style="display:none">
+      <div id="inviteBox" style="display:none">
+        <div class="row">
+          <input id="inviteBet" type="number" placeholder="押注美元（10~200）" min="10" max="200">
+        </div>
+        <button id="btnInvite" class="primary">邀请群友对战</button>
+        <div class="tip">点击后机器人会在群里发「xxx 发起象棋对战(1/2)」，等待群友点链接接受。</div>
+      </div>
+      <div id="acceptBox" style="display:none">
+        <button id="btnAccept" class="primary">接受对战</button>
+        <div class="tip">接受后将扣除押注额度，双方进入对局。</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnResign" class="danger" style="display:none">认输</button>
+      <button id="btnReconnect" class="primary" style="display:none">重新连接</button>
+    </div>
+    <div class="status" id="status">加载中…</div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="result" id="resultTitle"></div>
+    <div class="detail" id="resultDetail"></div>
+    <button class="primary" onclick="location.reload()">关闭</button>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script src="/js/xiangqi.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room');
+const player = parseInt(params.get('player'), 10);
+const token = params.get('token');
+const invite = params.get('invite');
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+const PIECES = {
+  k: ['帅', '将'], a: ['仕', '士'], b: ['相', '象'], n: ['马', '马'],
+  r: ['车', '车'], c: ['炮', '炮'], p: ['兵', '卒'],
+};
+
+let xq = null;
+let ws = null;
+let myTurn = false;
+let myPlayer = player;
+let myColor = player === 1 ? 'r' : 'b';
+let selectedFrom = null;
+let legalTo = new Set();
+
+const GAME_TYPE = 'xiangqi';
+let curRid = null, curPl = null, curTk = null;   // 当前对局连接信息（用于重连）
+let deadline = null, timeoutMs = 180000, timerInterval = null; // 思考倒计时
+
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const metaEl = document.getElementById('meta');
+const betBadge = document.getElementById('betBadge');
+const panelEl = document.getElementById('panel');
+const inviteBox = document.getElementById('inviteBox');
+const acceptBox = document.getElementById('acceptBox');
+const btnResign = document.getElementById('btnResign');
+
+function algebraicToRC(sq) {
+  return { row: 9 - (sq.charCodeAt(1) - 48), col: sq.charCodeAt(0) - 97 };
+}
+function rcToAlgebraic(row, col) {
+  return 'abcdefghi'[col] + (9 - row);
+}
+
+function render() {
+  const b = xq.board();
+  boardEl.innerHTML = '';
+  for (let gr = 0; gr < 11; gr++) {
+    if (gr === 5) {
+      const river = document.createElement('div');
+      river.className = 'river';
+      river.textContent = '楚 河　·　汉 界';
+      boardEl.appendChild(river);
+      continue;
+    }
+    const row = gr < 5 ? gr : gr - 1;
+    for (let col = 0; col < 9; col++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const p = b[row][col];
+      if (p) {
+        const piece = document.createElement('div');
+        piece.className = 'piece ' + (p.color === 'r' ? 'red' : 'black');
+        piece.textContent = PIECES[p.type][p.color === 'r' ? 0 : 1];
+        cell.appendChild(piece);
+      }
+      if (selectedFrom && selectedFrom.row === row && selectedFrom.col === col) {
+        cell.classList.add('selected');
+      }
+      if (legalTo.has(col + ',' + row)) {
+        cell.classList.add('target');
+      }
+      cell.addEventListener('click', () => onClickCell(row, col));
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+function onClickCell(row, col) {
+  if (!xq || !ws) return;
+  const b = xq.board();
+  const p = b[row][col];
+  const isMyPiece = p && p.color === myColor;
+
+  if (selectedFrom) {
+    if (legalTo.has(col + ',' + row)) {
+      const from = rcToAlgebraic(selectedFrom.row, selectedFrom.col);
+      const to = rcToAlgebraic(row, col);
+      const res = xq.move({ from, to });
+      if (res) {
+        ws.send(JSON.stringify({ type: 'move', move: { from, to } }));
+        selectedFrom = null; legalTo = new Set();
+        render();
+        setTurn(false);
+        return;
+      }
+    }
+    selectedFrom = null; legalTo = new Set();
+  }
+
+  if (isMyPiece && myTurn) {
+    selectedFrom = { row, col };
+    const moves = xq.moves({ verbose: true });
+    legalTo = new Set();
+    for (const m of moves) {
+      if (m.from === rcToAlgebraic(row, col)) {
+        const t = algebraicToRC(m.to);
+        legalTo.add(t.col + ',' + t.row);
+      }
+    }
+  }
+  render();
+}
+
+function setTurn(my) {
+  myTurn = my;
+  if (my) {
+    statusEl.textContent = '轮到你走棋';
+    statusEl.className = 'status turn';
+  } else {
+    statusEl.textContent = '等待对方走棋…';
+    statusEl.className = 'status';
+  }
+  updateTimer();
+}
+
+// ---- 思考倒计时 ----
+function updateTimer() {
+  const el = document.getElementById('timer');
+  if (deadline == null) { el.textContent = ''; return; }
+  const remain = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  const who = myTurn ? '你' : '对方';
+  if (remain <= 0) {
+    el.textContent = '⏱ ' + who + '思考超时，人机代走中…';
+    el.className = 'timer urgent';
+  } else {
+    el.textContent = '⏱ ' + who + '思考剩余 ' + remain + ' 秒';
+    el.className = 'timer' + (remain <= 30 ? ' urgent' : '');
+  }
+}
+function startTimer(dl, tmo) {
+  deadline = dl; timeoutMs = tmo || 180000;
+  if (timerInterval) clearInterval(timerInterval);
+  updateTimer();
+  timerInterval = setInterval(updateTimer, 1000);
+}
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  deadline = null;
+  const el = document.getElementById('timer');
+  if (el) el.textContent = '';
+}
+
+function showResult(winner, reason) {
+  const t = document.getElementById('resultTitle');
+  const d = document.getElementById('resultDetail');
+  if (winner === 0) {
+    t.textContent = '平局';
+    t.className = 'result draw';
+  } else if (winner === myPlayer) {
+    t.textContent = '🎉 你赢了';
+    t.className = 'result win';
+  } else {
+    t.textContent = '你输了';
+    t.className = 'result lose';
+  }
+  d.innerHTML = '对局结束：' + reason + '<br>额度已自动结算，结果将同步回群里';
+  document.getElementById('overlay').classList.add('show');
+}
+
+function connectWS(rid, pl, tk) {
+  myPlayer = pl;
+  myColor = pl === 1 ? 'r' : 'b';
+  curRid = rid; curPl = pl; curTk = tk;
+  ws = new WebSocket(
+    (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
+    '/ws?room=' + rid + '&player=' + pl + '&token=' + tk
+  );
+  ws.onopen = () => { statusEl.textContent = '已连接，等待开始…'; };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'hello') {
+      betBadge.textContent = '押注 $' + msg.bet;
+      metaEl.innerHTML =
+        '你：<b>' + (msg.you.name || msg.you.qq) + '</b>（' + (myPlayer === 1 ? '红方先手' : '黑方') + '）' +
+        '　vs　对手：<b>' + (msg.opponent.name || msg.opponent.qq) + '</b>';
+      xq = msg.state && msg.state.fen ? new Xiangqi(msg.state.fen) : new Xiangqi();
+      render();
+      setTurn((msg.state.turn || 1) === myPlayer);
+      startTimer(msg.deadline, msg.timeoutMs);
+      GCAuth.saveBattle(GAME_TYPE, curRid, curPl, curTk);
+      panelEl.style.display = 'none';
+      btnResign.style.display = 'inline-block';
+      document.getElementById('btnReconnect').style.display = 'none';
+    } else if (msg.type === 'move') {
+      xq.move({ from: msg.move.from, to: msg.move.to });
+      selectedFrom = null; legalTo = new Set();
+      render();
+      setTurn(msg.turn === myPlayer);
+      startTimer(msg.deadline, msg.timeoutMs);
+      if (msg.auto) {
+        const who = msg.autoPlayer === myPlayer ? '你' : '对方';
+        statusEl.textContent = '⚠ ' + who + '思考超时，人机代走一步';
+        statusEl.className = 'status';
+      }
+    } else if (msg.type === 'end') {
+      stopTimer();
+      GCAuth.clearBattle(GAME_TYPE);
+      showResult(msg.winner, msg.reason);
+    } else if (msg.type === 'error') {
+      statusEl.textContent = msg.message || '出错了';
+      statusEl.className = 'status';
+    }
+  };
+  ws.onclose = () => {
+    stopTimer();
+    document.getElementById('btnReconnect').style.display = 'inline-block';
+    statusEl.textContent = '连接已断开，可点「重新连接」恢复对局';
+    statusEl.className = 'status';
+  };
+}
+
+async function postJSON(path, body) {
+  const r = await fetch(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+// ---- 邀请流程 ----
+async function doInvite() {
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('inviteBet').value);
+  if (!(bet >= 10 && bet <= 200)) { alert('押注金额需在 10~200 美元之间'); return; }
+  if (!gid) { alert('缺少群号，请从群里的游戏大厅链接进入'); return; }
+  const d = await postJSON('/api/invite', { gameType: 'xiangqi', groupId: gid, token, bet });
+  if (d.code !== 'ok') { alert(d.error || '发起失败'); return; }
+  statusEl.textContent = '邀请已发出，等待机器人在群里广播…';
+  const t = setInterval(async () => {
+    const r = await fetch('/api/invite/' + d.inviteId);
+    const j = await r.json();
+    if (j.status === 'resolved' && j.roomId) {
+      clearInterval(t);
+      pollRoomPlaying(j.roomId, 1, j.player1Token);
+    } else if (j.status === 'failed') {
+      clearInterval(t);
+      statusEl.textContent = j.error || '邀请失败';
+    }
+  }, 2000);
+}
+
+function pollRoomPlaying(rid, pl, tk) {
+  GCAuth.saveBattle(GAME_TYPE, rid, pl, tk); // 等待阶段也持久化，便于退出重进
+  statusEl.textContent = '已建房，等待对手点链接接受…';
+  const t = setInterval(async () => {
+    const r = await fetch('/api/room/' + rid);
+    const j = await r.json();
+    if (j.state === 'playing') {
+      clearInterval(t);
+      connectWS(rid, pl, tk);
+    } else if (j.state === 'finished') {
+      clearInterval(t);
+      GCAuth.clearBattle(GAME_TYPE);
+      statusEl.textContent = '对局已结束';
+    }
+  }, 2000);
+}
+
+// ---- 接受流程 ----
+async function doAccept() {
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const d = await postJSON('/api/accept', { roomId, token });
+  if (d.code !== 'ok') { alert(d.error || '接受失败'); return; }
+  statusEl.textContent = '等待机器人处理…';
+  const t = setInterval(async () => {
+    const r = await fetch('/api/accept/' + d.acceptId);
+    const j = await r.json();
+    if (j.status === 'resolved' && j.player2Token) {
+      clearInterval(t);
+      connectWS(roomId, 2, j.player2Token);
+    } else if (j.status === 'failed') {
+      clearInterval(t);
+      statusEl.textContent = j.error || '接受失败';
+    }
+  }, 2000);
+}
+
+document.getElementById('btnInvite').onclick = doInvite;
+document.getElementById('btnAccept').onclick = doAccept;
+btnResign.onclick = () => {
+  if (confirm('确定认输吗？')) ws.send(JSON.stringify({ type: 'resign' }));
+};
+document.getElementById('btnReconnect').onclick = () => {
+  if (curRid && curTk) {
+    document.getElementById('btnReconnect').style.display = 'none';
+    connectWS(curRid, curPl, curTk);
+  }
+};
+
+// 登录条
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+// ---- 初始化：按模式（含退出重进恢复） ----
+async function init() {
+  // 1) URL 带 token：正常对战（机器人私聊链接）
+  if (roomId && token) { connectWS(roomId, player, token); return; }
+
+  // 2) 重连：本地保存了对局 token 且房间仍在进行中
+  const saved = GCAuth.loadBattle(GAME_TYPE);
+  if (saved && saved.token) {
+    try {
+      const r = await fetch('/api/room/' + saved.roomId);
+      const j = await r.json();
+      if (j.state === 'playing') { connectWS(saved.roomId, saved.player, saved.token); return; }
+      if (j.state === 'waiting' && saved.player === 1) { pollRoomPlaying(saved.roomId, saved.player, saved.token); return; }
+    } catch (e) { /* 网络异常按无对战处理 */ }
+    GCAuth.clearBattle(GAME_TYPE);
+  }
+
+  // 3) 接受对战
+  if (roomId && invite === '1') {
+    xq = new Xiangqi();
+    render();
+    betBadge.textContent = '接受对战';
+    panelEl.style.display = 'flex';
+    acceptBox.style.display = 'flex';
+    statusEl.textContent = '登录后点击「接受对战」';
+    statusEl.className = 'status';
+    return;
+  }
+
+  // 4) 预览 / 邀请
+  xq = new Xiangqi();
+  render();
+  betBadge.textContent = '演示';
+  metaEl.textContent = '中国象棋 · 红方先手（楚河汉界）';
+  panelEl.style.display = 'flex';
+  inviteBox.style.display = 'flex';
+  statusEl.textContent = '登录后输入押注发起邀请对战';
+  statusEl.className = 'status';
+}
+init();
+</script>
+</body>
+</html>

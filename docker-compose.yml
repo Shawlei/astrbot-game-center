@@ -1,0 +1,22 @@
+services:
+  game-center:
+    build: .
+    container_name: game-center
+    restart: unless-stopped
+    ports:
+      - "${GAME_PORT:-46110}:46110"
+      - "${ADMIN_PORT:-46111}:46111"
+    environment:
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      MYSQL_HOST: "${MYSQL_HOST:-}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_USER: "${MYSQL_USER:-}"
+      MYSQL_PASS: "${MYSQL_PASS:-}"
+      MYSQL_NAME: "${MYSQL_NAME:-new-api}"
+      NEWAPI_BASE: "${NEWAPI_BASE:-}"
+      NEWAPI_KEY: "${NEWAPI_KEY:-}"
+      AI_MODEL: "${AI_MODEL:-agy-gemini-3.8-flash-high}"
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+    volumes:
+      - ./data:/app/data
+      - "${BINDINGS_FILE:-./data/bindings.json}:/app/data/bindings.json:ro"
