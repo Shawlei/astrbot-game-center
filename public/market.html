@@ -295,7 +295,7 @@ function onQuote(m) {
 }
 
 function onTrade(t) {
-  feed.unshift({ time: hhmmss(), type: t.type, username: t.username, name: t.name, amount: t.amount, shares: t.shares });
+  feed.unshift({ time: hhmmss(), type: t.side || t.type, username: t.username, name: t.name, amount: t.amount, shares: t.shares });
   if (feed.length > 50) feed.pop();
   renderFeed();
   loadRank();

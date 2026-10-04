@@ -718,7 +718,7 @@ const safeBroadcast = (fn) => (arg) => { try { fn(arg); } catch (e) { /* ignore 
 
 market.setHandlers({
   onQuote: safeBroadcast((d) => broadcastMarket({ type: 'quote', ...d })),
-  onTrade: safeBroadcast((t) => broadcastMarket({ type: 'trade', ...t })),
+  onTrade: safeBroadcast((t) => broadcastMarket({ type: 'trade', side: t.type, username: t.username, code: t.code, name: t.name, price: t.price, amount: t.amount, shares: t.shares })),
   onNews: safeBroadcast((n) => broadcastMarket({ type: 'news', ...n })),
 });
 
