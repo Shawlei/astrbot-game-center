@@ -255,9 +255,9 @@ function loadHoldings(uid) {
 }
 
 function loadGameLB() {
-  const games = ['xiangqi', 'gomoku', 'pinball', 'snake', 'breakout', 'twentyfour'];
-  const names = { xiangqi: '象棋', gomoku: '五子棋', pinball: '弹球机', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点' };
-  let sel = currentGameType || 'xiangqi';
+  const games = ['doudizhu', 'xiangqi', 'gomoku', 'snake', 'breakout', 'twentyfour'];
+  const names = { doudizhu: '斗地主', xiangqi: '象棋', gomoku: '五子棋', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点' };
+  let sel = currentGameType || 'doudizhu';
   $('dataBody').innerHTML = `<div class="save-row">
     <select id="gameSel" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit">
       ${games.map((g) => `<option value="${g}" ${g === sel ? 'selected' : ''}>${names[g]}</option>`).join('')}
@@ -268,7 +268,7 @@ function loadGameLB() {
 }
 function fetchGameLB(gameType) {
   api('/api/admin/game/leaderboard?gameType=' + gameType).then(({ list }) => {
-    const isSolo = gameType !== 'xiangqi' && gameType !== 'gomoku';
+    const isSolo = gameType !== 'doudizhu' && gameType !== 'xiangqi' && gameType !== 'gomoku';
     $('lbBox').innerHTML = `<table>
       <tr><th>#</th><th>用户</th><th>ID</th>${isSolo ? '<th class="num">局数</th><th class="num">净赢($)</th><th class="num">最佳($)</th>' : '<th class="num">胜</th><th class="num">负</th><th class="num">平</th><th class="num">总</th>'}</tr>
       ${list.map((r, i) => `<tr>

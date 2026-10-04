@@ -36,7 +36,7 @@
       <button id="btnJoin" class="primary">凭房间码进入对战</button>
     </div>
     <div style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.7">
-      联机对战房间码由机器人在群里匹配成功后私聊发送：在群里发 <b style="color:var(--text)">%象棋对战</b> / <b style="color:var(--text)">%五子棋对战</b> 匹配。
+      联机对战房间码由机器人在群里匹配成功后私聊发送：在群里发 <b style="color:var(--text)">%斗地主</b> / <b style="color:var(--text)">%象棋对战</b> / <b style="color:var(--text)">%五子棋对战</b> 匹配。
     </div>
   </div>
   <div class="games" id="pvpGames"></div>
@@ -47,7 +47,7 @@
     <div id="lbList"></div>
   </div>
 
-  <div class="hint" id="hint">本页为大厅入口；联机对战请在群里发 %象棋对战 / %五子棋对战 匹配，凭机器人私聊的房间码进入。</div>
+  <div class="hint" id="hint">本页为大厅入口；联机对战请在群里发 %斗地主 / %象棋对战 / %五子棋对战 匹配，凭机器人私聊的房间码进入。</div>
 </div>
 
 <script src="/js/auth.js"></script>
@@ -57,7 +57,6 @@ const q = gid ? ('?gid=' + encodeURIComponent(gid)) : '';
 
 const SOLO_GAMES = [
   { href: '/snake.html' + q, emoji: '🐍', name: '贪吃蛇', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
-  { href: '/pinball.html' + q, emoji: '🕹️', name: '弹球机', desc: '经典弹球，底部挡板弹球撞得分点，按得分结倍率。' },
   { href: '/breakout.html' + q, emoji: '🎮', name: '打砖块', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
   { href: '/twentyfour.html' + q, emoji: '🧮', name: '24点', desc: '四张牌算出 24，答对赢额、答错扣额。' },
 ];
@@ -65,6 +64,7 @@ const MARKET_GAMES = [
   { href: '/market.html' + q, emoji: '📈', name: '虚拟股市', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
 ];
 const PVP_GAMES = [
+  { href: '/doudizhu.html' + q, emoji: '🃏', name: '斗地主', desc: '三人一桌，叫地主/加倍/炸弹，经典斗地主规则。' },
   { href: '/xiangqi.html' + q, emoji: '♟️', name: '中国象棋', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
   { href: '/gomoku.html' + q, emoji: '⚫', name: '五子棋', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
 ];
@@ -107,9 +107,9 @@ GCAuth.renderAuthBar(document.getElementById('authBar'));
 // ---- 排行榜 ----
 const LB = [
   { key: 'snake', label: '贪吃蛇', type: 'solo' },
-  { key: 'pinball', label: '弹球机', type: 'solo' },
   { key: 'breakout', label: '打砖块', type: 'solo' },
   { key: 'twentyfour', label: '24点', type: 'solo' },
+  { key: 'doudizhu', label: '斗地主', type: 'pvp' },
   { key: 'xiangqi', label: '象棋', type: 'pvp' },
   { key: 'gomoku', label: '五子棋', type: 'pvp' },
   { key: 'market', label: '股市', type: 'market' },

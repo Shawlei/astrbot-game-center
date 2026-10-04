@@ -14,9 +14,12 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const { XQ } = require('./lib/xq');
 const { Gomoku } = require('./lib/gomoku');
+const doudizhu = require('./lib/doudizhu');
+const ddzAi = require('./lib/doudizhu-ai');
 const settle = require('./lib/settle');
 const { Stats } = require('./lib/stats');
 const bindings = require('./lib/bindings');
@@ -31,8 +34,9 @@ const stats = new Stats(CONFIG.statsFile);
 const market = new Market(CONFIG.portfolioFile, CONFIG.reversalsFile);
 
 const GAME_TYPES = {
-  xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ() },
-  gomoku: { name: '五子棋', url: 'gomoku.html', create: () => new Gomoku() },
+  xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ(), maxPlayers: 2 },
+  gomoku: { name: '五子棋', url: 'gomoku.html', create: () => new Gomoku(), maxPlayers: 2 },
+  doudizhu: { name: '斗地主', url: 'doudizhu.html', create: () => new doudizhu.DouDiZhu(), maxPlayers: 3 },
 };
 
 // ---- 房间存储 ----
@@ -80,6 +84,10 @@ function findByCode(code) {
 function makeRoom(gameType, groupId, player, betUsd) {
   const id = crypto.randomBytes(6).toString('hex');
   const betQuota = Math.max(1, Math.round(betUsd * CONFIG.quotaPerUnit));
+  const maxPlayers = (GAME_TYPES[gameType] && GAME_TYPES[gameType].maxPlayers) || 2;
+  const players = { 1: player };
+  const tokens = { 1: crypto.randomBytes(8).toString('hex') };
+  for (let i = 2; i <= maxPlayers; i++) { players[i] = null; tokens[i] = ''; }
   const room = {
     id,
     code: genCode(),
@@ -87,7 +95,8 @@ function makeRoom(gameType, groupId, player, betUsd) {
     groupId: String(groupId),
     bet: betUsd,
     betQuota,
-    players: { 1: player, 2: null },
+    maxPlayers,
+    players,
     state: 'waiting', // waiting | playing | finished
     game: null,
     turn: 1,
@@ -97,13 +106,15 @@ function makeRoom(gameType, groupId, player, betUsd) {
     reason: '',
     createdAt: Date.now(),
     finishedAt: null,
-    tokens: { 1: crypto.randomBytes(8).toString('hex'), 2: '' },
+    tokens,
   };
   rooms.set(id, room);
   return room;
 }
 
 function roomPublic(room, withToken) {
+  const players = { 1: room.players[1], 2: room.players[2] };
+  if (room.maxPlayers >= 3) players[3] = room.players[3];
   const r = {
     id: room.id,
     code: room.code,
@@ -111,14 +122,12 @@ function roomPublic(room, withToken) {
     groupId: room.groupId,
     bet: room.bet,
     betQuota: room.betQuota,
+    maxPlayers: room.maxPlayers,
     state: room.state,
     turn: room.turn,
     winner: room.winner,
     reason: room.reason,
-    players: {
-      1: room.players[1],
-      2: room.players[2],
-    },
+    players,
     finishedAt: room.finishedAt,
   };
   if (withToken) {
@@ -215,7 +224,7 @@ app.post('/api/room', async (req, res) => {
   res.json({ code: 'created', room: roomPublic(room, true) });
 });
 
-// 加入房间（接受对方押注额），双方扣款并开战
+// 加入房间（接受对方押注额），满员后扣款并开战（斗地主 3 人）
 app.post('/api/room/:id/join', async (req, res) => {
   const room = rooms.get(req.params.id);
   if (!room) return res.status(404).json({ error: '房间不存在或已结束' });
@@ -223,21 +232,48 @@ app.post('/api/room/:id/join', async (req, res) => {
 
   const { player } = req.body || {};
   if (!player || !player.userId) return res.status(400).json({ error: '参数缺失' });
-  if (String(player.qq) === String(room.players[1].qq)) {
-    return res.status(400).json({ error: '不能和自己对战' });
-  }
-  if (String(player.userId) === String(room.players[1].userId)) {
-    return res.status(400).json({ error: '不能和自己对战' });
+
+  // 不能和自己对战（检查所有已加入座位）
+  for (const p of Object.values(room.players)) {
+    if (!p) continue;
+    if (String(player.qq) === String(p.qq) || String(player.userId) === String(p.userId)) {
+      return res.status(400).json({ error: '不能和自己对战' });
+    }
   }
 
-  // 双方扣款（自由押注：对手接受发起人押注额）
+  // 找空座位
+  const maxPlayers = room.maxPlayers || 2;
+  let seat = 0;
+  for (let i = 1; i <= maxPlayers; i++) { if (!room.players[i]) { seat = i; break; } }
+  if (!seat) return res.status(400).json({ error: '房间已满' });
+
+  room.players[seat] = player;
+  room.tokens[seat] = crypto.randomBytes(8).toString('hex');
+
+  // 是否满员
+  let full = true;
+  for (let i = 1; i <= maxPlayers; i++) { if (!room.players[i]) { full = false; break; } }
+
+  if (!full) {
+    // 斗地主：还差人，继续等待
+    return res.json({ code: 'joined', room: roomPublic(room, true) });
+  }
+
+  // 满员开战：各方扣款（事务）
   if (settle.ready()) {
-    const ok = await settle.settleStart(room.players[1].userId, player.userId, room.betQuota);
-    if (!ok) return res.status(400).json({ error: '余额不足，无法开战（双方各需 $' + room.bet + '）' });
+    const uids = [];
+    for (let i = 1; i <= maxPlayers; i++) uids.push(room.players[i].userId);
+    let ok;
+    if (maxPlayers === 3) ok = await settle.settleStart3(uids[0], uids[1], uids[2], room.betQuota);
+    else ok = await settle.settleStart(uids[0], uids[1], room.betQuota);
+    if (!ok) {
+      // 扣款失败回滚座位
+      room.players[seat] = null;
+      room.tokens[seat] = '';
+      return res.status(400).json({ error: '余额不足，无法开战（每位玩家需 $' + room.bet + '）' });
+    }
   }
 
-  room.players[2] = player;
-  room.tokens[2] = crypto.randomBytes(8).toString('hex');
   room.game = GAME_TYPES[room.gameType].create();
   room.state = 'playing';
   room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
@@ -257,8 +293,10 @@ app.post('/api/room/join-by-code', (req, res) => {
 
   const uid = String(sess.userId);
   let player = 0;
-  if (String(room.players[1].userId) === uid) player = 1;
-  else if (room.players[2] && String(room.players[2].userId) === uid) player = 2;
+  const maxPlayers = room.maxPlayers || 2;
+  for (let i = 1; i <= maxPlayers; i++) {
+    if (room.players[i] && String(room.players[i].userId) === uid) { player = i; break; }
+  }
   if (!player) return res.status(403).json({ error: '你不是该房间的玩家，请确认已用绑定账号登录' });
 
   res.json({
@@ -277,10 +315,11 @@ app.get('/api/room/:id', (req, res) => {
   const room = rooms.get(req.params.id);
   if (!room) return res.status(404).json({ error: '房间不存在' });
   const r = roomPublic(room, false);
-  r.stats = {
-    1: stats.summary(room.players[1].userId, room.gameType),
-    2: room.players[2] ? stats.summary(room.players[2].userId, room.gameType) : null,
-  };
+  r.stats = {};
+  for (let i = 1; i <= (room.maxPlayers || 2); i++) {
+    r.stats[i] = room.players[i] ? stats.summary(room.players[i].userId, room.gameType) : null;
+  }
+  if (room.ddzResult) r.ddzResult = room.ddzResult;
   res.json(r);
 });
 
@@ -329,46 +368,6 @@ async function settleTicket(userId, gameType, betQuota, mult) {
   stats.recordSolo(userId, gameType, net);
   return net;
 }
-
-// 弹球机：开始（扣门票 + 发种子）
-app.post('/api/solo/pinball/start', async (req, res) => {
-  try {
-    const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet);
-    if (rb.error) return res.status(400).json({ error: rb.error });
-    if (settle.ready() && !(await settle.debit(rb.player.userId, rb.betQuota))) {
-      return res.status(400).json({ error: '余额不足' });
-    }
-    const id = crypto.randomBytes(8).toString('hex');
-    const seed = (Math.random() * 0x7fffffff) >>> 0;
-    soloSessions.set(id, {
-      id, gameType: 'pinball', userId: rb.player.userId, username: rb.player.username,
-      bet: rb.betUsd, betQuota: rb.betQuota, seed, state: 'playing', createdAt: Date.now(),
-    });
-    res.json({ code: 'ok', sessionId: id, bet: rb.betUsd, seed });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// 弹球机：结束（服务端回放逐帧输入得权威分数 + 结算）
-app.post('/api/solo/pinball/end', async (req, res) => {
-  try {
-    const s = soloSessions.get(req.body && req.body.sessionId);
-    if (!s || s.state !== 'playing') return res.status(404).json({ error: '对局不存在或已结束' });
-    const inputs = Array.isArray(req.body && req.body.inputs) ? req.body.inputs : [];
-    const rep = solo.pinballReplay(s.seed, inputs);
-    const mult = solo.pinballMult(rep.score);
-    const net = await settleTicket(s.userId, 'pinball', s.betQuota, mult);
-    soloSessions.delete(s.id);
-    res.json({
-      code: 'ok', bet: s.bet, score: rep.score, mult, balls: rep.balls, over: rep.over,
-      netUsd: usd(net), quota: settle.ready() ? await settle.balance(s.userId) : null,
-      username: s.username,
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // 打砖块：开始（扣门票 + 发种子）
 app.post('/api/solo/breakout/start', async (req, res) => {
@@ -753,6 +752,11 @@ app.get('/api/accept/:id', (req, res) => {
 // favicon：返回 204，避免浏览器每次加载页面都刷一条 404
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
+// 暴露斗地主规则引擎给前端（与服务端共用同一份，保证规则一致）
+app.get('/js/doudizhu.js', (req, res) => {
+  res.type('application/javascript').send(fs.readFileSync(path.join(__dirname, 'lib', 'doudizhu.js')));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- WebSocket ----
@@ -768,6 +772,162 @@ function broadcastRoom(roomId, msg) {
       try { c.send(data); } catch (e) { /* 单个坏连接不影响整体 */ }
     }
   });
+}
+
+// ---- 斗地主（3 人）专属逻辑 ----
+// 房间座位 1/2/3 对应斗地主 seat 0/1/2
+
+function sendToSeat(roomId, seat, msg) {
+  const data = JSON.stringify(msg);
+  wss.clients.forEach((c) => {
+    if (c.roomId === roomId && c.player === seat && c.readyState === WebSocket.OPEN) {
+      try { c.send(data); } catch (e) { /* 单个坏连接不影响整体 */ }
+    }
+  });
+}
+
+// 斗地主状态广播：每个座位收到定制视角（含各自手牌）
+function broadcastDDZ(room, type, extra) {
+  for (let seat = 1; seat <= room.maxPlayers; seat++) {
+    const view = room.game.viewFor(seat - 1);
+    const msg = Object.assign({ type, player: seat, deadline: room.turnDeadline, timeoutMs: CONFIG.turnTimeoutMs }, extra || {}, view);
+    sendToSeat(room.id, seat, msg);
+  }
+}
+
+// 当前轮到谁的 room 座位（1/2/3），0 表示无人（对局结束）
+function ddzCurrentSeat(room) {
+  const g = room.game;
+  if (!g) return 0;
+  if (g.phase === 'bidding') return g.bidSeat + 1;
+  if (g.phase === 'doubling') return g.doubleSeat + 1;
+  if (g.phase === 'playing') return g.current + 1;
+  return 0;
+}
+
+// 结束斗地主：3 人结算 + 战绩
+async function finishDoudizhu(room) {
+  if (room.state === 'finished') return;
+  room.state = 'finished';
+  room.finishedAt = Date.now();
+  const g = room.game;
+  const gt = room.gameType;
+  const landlord = g.landlord + 1; // room 座位
+  const farmers = [1, 2, 3].filter((s) => s !== landlord);
+  const landlordWon = g.landlordWon;
+  const multiplier = g.multiplier;
+
+  room.winner = landlordWon ? landlord : -2; // -2 表示农民方胜
+  room.reason = g.reason;
+  room.ddzResult = { landlordWon, multiplier, spring: g.spring, landlord, bombCount: g.bombCount };
+
+  let settled = true, degraded = false;
+  if (settle.ready()) {
+    const r = await settle.settleEnd3(
+      room.players[landlord].userId,
+      room.players[farmers[0]].userId,
+      room.players[farmers[1]].userId,
+      room.betQuota, multiplier, landlordWon,
+    );
+    settled = r.ok;
+    degraded = r.degraded;
+  }
+  room.settled = settled;
+  room.settledDegraded = degraded;
+  room.ddzResult.degraded = degraded;
+
+  const landlordUid = room.players[landlord].userId;
+  const f1Uid = room.players[farmers[0]].userId;
+  const f2Uid = room.players[farmers[1]].userId;
+  if (landlordWon) {
+    stats.record(landlordUid, gt, 'win');
+    stats.record(f1Uid, gt, 'lose');
+    stats.record(f2Uid, gt, 'lose');
+  } else {
+    stats.record(landlordUid, gt, 'lose');
+    stats.record(f1Uid, gt, 'win');
+    stats.record(f2Uid, gt, 'win');
+  }
+}
+
+// 斗地主消息处理（客户端 → 服务端）：bid / double / play / pass
+async function handleDDZMessage(ws, room, player, msg) {
+  const g = room.game;
+  const seat = player - 1;
+
+  if (msg.type === 'bid') {
+    const r = g.bid(seat, msg.score);
+    if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
+    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    if (r.redealt) {
+      broadcastDDZ(room, 'redeal', { bidStart: g.bidStart });
+    } else if (r.phase === 'doubling') {
+      broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom });
+    } else {
+      broadcastDDZ(room, 'bid', {});
+    }
+  } else if (msg.type === 'double') {
+    const r = g.double(seat, msg.factor);
+    if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
+    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    broadcastDDZ(room, 'double', {});
+  } else if (msg.type === 'play') {
+    const r = g.play(seat, msg.cards);
+    if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
+    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    if (r.over) {
+      await finishDoudizhu(room);
+      broadcastDDZ(room, 'end', { result: g.resultView(), winner: room.winner, reason: g.reason });
+    } else {
+      broadcastDDZ(room, 'play', {});
+    }
+  } else if (msg.type === 'pass') {
+    const r = g.pass(seat);
+    if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
+    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    broadcastDDZ(room, 'pass', {});
+  }
+}
+
+// 斗地主超时托管：AI 代当前轮到方决策
+async function ddzAutoMove(room) {
+  if (room.state !== 'playing' || room.autoMoving) return;
+  const g = room.game;
+  const seat = ddzCurrentSeat(room) - 1;
+  if (seat < 0) return;
+  room.autoMoving = true;
+  try {
+    if (g.phase === 'bidding') {
+      const score = ddzAi.bid(g.hands[seat], g.highestBid);
+      const r = g.bid(seat, score);
+      if (r.redealt) broadcastDDZ(room, 'redeal', {});
+      else if (r.phase === 'doubling') broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom, auto: true });
+      else broadcastDDZ(room, 'bid', { auto: true, autoSeat: seat });
+    } else if (g.phase === 'doubling') {
+      const factor = ddzAi.double(g.hands[seat], seat === g.landlord);
+      g.double(seat, factor);
+      broadcastDDZ(room, 'double', { auto: true, autoSeat: seat });
+    } else if (g.phase === 'playing') {
+      const lastPlay = g.lastPlay ? { type: g.lastPlay.type, rank: g.lastPlay.rank, length: g.lastPlay.length } : null;
+      const decision = ddzAi.play(g.hands[seat], lastPlay);
+      if (decision.pass) {
+        const r = g.pass(seat);
+        if (r.ok) broadcastDDZ(room, 'pass', { auto: true, autoSeat: seat });
+      } else {
+        const ids = decision.cards.map((c) => doudizhu.cardId(c));
+        const r = g.play(seat, ids);
+        if (r.over) {
+          await finishDoudizhu(room);
+          broadcastDDZ(room, 'end', { result: g.resultView(), winner: room.winner, reason: g.reason, auto: true });
+        } else {
+          broadcastDDZ(room, 'play', { auto: true, autoSeat: seat });
+        }
+      }
+    }
+    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+  } finally {
+    room.autoMoving = false;
+  }
 }
 
 // 超时托管：轮到方超过思考时间未操作，由人机代走一步，避免对局卡死。
@@ -855,7 +1015,8 @@ wss.on('connection', (ws, req) => {
   const token = url.searchParams.get('token');
 
   const room = roomId ? rooms.get(roomId) : null;
-  if (!room || room.state !== 'playing' || (player !== 1 && player !== 2)) {
+  const maxPlayers = room ? (room.maxPlayers || 2) : 2;
+  if (!room || room.state !== 'playing' || player < 1 || player > maxPlayers) {
     ws.send(JSON.stringify({ type: 'error', message: '房间不可用' }));
     ws.close();
     return;
@@ -866,12 +1027,39 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  const opponent = room.players[player === 1 ? 2 : 1];
-
   ws.roomId = room.id;
   ws.player = player;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+
+  // ---- 斗地主（3 人）专属连接处理 ----
+  if (room.gameType === 'doudizhu') {
+    const names = {};
+    for (let i = 1; i <= maxPlayers; i++) {
+      names[i] = room.players[i] ? { qq: room.players[i].qq, name: room.players[i].name } : null;
+    }
+    ws.send(JSON.stringify(Object.assign({
+      type: 'hello',
+      player,
+      gameType: 'doudizhu',
+      bet: room.bet,
+      you: names[player],
+      seats: names,
+      deadline: room.turnDeadline,
+      timeoutMs: CONFIG.turnTimeoutMs,
+    }, room.game.viewFor(player - 1))));
+
+    ws.on('message', async (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch (e) { return; }
+      if (room.state !== 'playing') return;
+      await handleDDZMessage(ws, room, player, msg);
+    });
+    ws.on('close', () => {});
+    return;
+  }
+
+  const opponent = room.players[player === 1 ? 2 : 1];
 
   ws.send(JSON.stringify({
     type: 'hello',
@@ -954,7 +1142,8 @@ setInterval(() => {
   const now = Date.now();
   for (const room of rooms.values()) {
     if (room.state === 'playing' && room.turnDeadline && now > room.turnDeadline) {
-      autoMove(room);
+      if (room.gameType === 'doudizhu') ddzAutoMove(room);
+      else autoMove(room);
     }
   }
 }, 1000).unref();
