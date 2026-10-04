@@ -178,7 +178,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .up { color: var(--red); }  /* 涨=红（中国习惯） */
 .down { color: var(--green); }
 .flat { color: var(--muted); }
-.stock-chart { width: 100%; height: 180px; display: block; margin-top: 8px; }
+.stock-chart { width: 100%; height: 400px; display: block; margin-top: 8px; }
+.sub-tabs { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+.sub-tabs .lbl { font-size: 11px; color: var(--muted); }
+.sub-tabs button { padding: 4px 10px; font-size: 11px; border-radius: 8px; }
+.chart-tabs { flex-wrap: wrap; }
 .pos-label { font-size: 13px; color: var(--muted); margin: 18px 0 8px; }
 
 /* 返回按钮 */
@@ -225,4 +229,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .orderbook .ob-title { color: var(--muted); font-size: 11px; margin-bottom: 6px; font-weight: 600; }
 .orderbook .ob-row { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
 .orderbook .ob-row span { color: var(--muted); }
+
+/* 基本面面板 */
+.fund-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 10px; }
+.fund-grid .cell { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.fund-grid .cell .k { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.fund-grid .cell .v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fund-title { font-size: 12px; color: var(--muted); margin: 12px 0 0; font-weight: 600; }
+
+/* 板块排行 */
+.sector-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 13px; flex-wrap: wrap; }
+.sector-row:last-child { border-bottom: none; }
+.sector-row .nm { font-weight: 600; color: var(--text); min-width: 70px; }
+.sector-row .stk { color: var(--muted); font-size: 12px; }
+.sector-row .val { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
 

@@ -33,6 +33,12 @@
 .conn.off .dot { background: var(--red); animation: none; }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 
+/* 市场时段徽标 */
+.phase-badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
+.phase-badge.continuous { background: rgba(62,207,142,.14); color: var(--green); border: 1px solid rgba(62,207,142,.35); }
+.phase-badge.auction { background: rgba(255,183,77,.16); color: var(--gold); border: 1px solid rgba(255,183,77,.4); }
+.phase-badge.paused { background: rgba(139,144,168,.16); color: var(--muted); border: 1px solid rgba(139,144,168,.35); }
+
 /* 市场动态成交流 */
 .feed { display: flex; flex-direction: column; }
 .feed-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--border); font-size: 13px; animation: feedIn .4s ease; flex-wrap: wrap; }
@@ -104,14 +110,14 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
       <a class="back-btn" href="/" id="backBtn">← 大厅</a>
       <div class="title">📈 模拟股市</div>
     </div>
-    <span class="badge" id="minBadge">最低投入 $1000</span>
+    <span class="badge" id="minBadge">最低买入 $1000</span>
   </div>
   <div id="authBar"></div>
 
   <!-- 大盘指数 -->
   <div class="card index-card">
     <div style="min-width:180px">
-      <div class="idx-name">SIM 综合指数 <span class="conn" id="conn"><span class="dot"></span><span id="connText">连接中…</span></span></div>
+      <div class="idx-name">SIM 综合指数 <span class="conn" id="conn"><span class="dot"></span><span id="connText">连接中…</span></span><span class="phase-badge paused" id="phaseBadge">--</span></div>
       <div class="idx-val" id="idxVal">--</div>
       <div class="idx-chg" id="idxChg">--</div>
     </div>
@@ -169,21 +175,53 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
 
       <div class="chart-tabs">
         <button id="tabIntraday" class="active">分时</button>
-        <button id="tabKline">日K</button>
-        <span style="margin-left:auto;font-size:12px;color:var(--muted)" id="chartInfo"></span>
+        <button id="tab1m">1分</button>
+        <button id="tab5m">5分</button>
+        <button id="tab15m">15分</button>
+        <button id="tab30m">30分</button>
+        <button id="tab60m">60分</button>
+        <button id="tabDay">日K</button>
+        <button id="tabWeek">周K</button>
+        <button id="tabMonth">月K</button>
       </div>
-      <svg class="stock-chart" id="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+      <div class="chart-tabs" style="margin-top:2px">
+        <span style="font-size:12px;color:var(--muted)" id="chartInfo"></span>
+        <div class="sub-tabs" id="subTabs">
+          <span class="lbl">副图</span>
+          <button id="subMACD" class="active">MACD</button>
+          <button id="subKDJ">KDJ</button>
+          <button id="subRSI">RSI</button>
+          <button id="subVOL">VOL</button>
+          <button id="subBOLL">BOLL</button>
+        </div>
+      </div>
+      <svg class="stock-chart" id="chart" viewBox="0 0 600 360" preserveAspectRatio="none"></svg>
 
       <div class="orderbook" id="orderbook"></div>
 
+      <div class="fund-title">📊 基本面 · 资金流向</div>
+      <div class="fund-grid">
+        <div class="cell"><div class="k">市盈率 PE</div><div class="v" id="fPe">--</div></div>
+        <div class="cell"><div class="k">市净率 PB</div><div class="v" id="fPb">--</div></div>
+        <div class="cell"><div class="k">总市值</div><div class="v" id="fCap">--</div></div>
+        <div class="cell"><div class="k">流通市值</div><div class="v" id="fFloatCap">--</div></div>
+        <div class="cell"><div class="k">换手率</div><div class="v" id="fTurn">--</div></div>
+        <div class="cell"><div class="k">主力净流入</div><div class="v" id="fInflow">--</div></div>
+      </div>
+
       <div class="trade-row">
-        <input id="buyAmt" type="number" placeholder="买入金额（美元，≥1000）" min="1000">
+        <input id="buyPrice" type="number" step="0.01" placeholder="买入限价">
+        <input id="buyQty" type="number" step="1" min="1" placeholder="买入股数">
         <button id="btnBuy" class="primary">买入</button>
-        <input id="sellShares" type="text" placeholder="卖出股数（填 all 全卖）">
+      </div>
+      <div class="trade-row">
+        <input id="sellPrice" type="number" step="0.01" placeholder="卖出限价">
+        <input id="sellQty" type="number" step="1" min="1" placeholder="卖出股数">
+        <button id="btnSellAll" type="button" style="padding:11px 14px">全部</button>
         <button id="btnSell" class="danger">卖出</button>
       </div>
       <div class="rules-line" style="margin-top:10px">
-        <b>交易规则</b> · 涨跌停 <b id="rLimit">±10%</b>（相对昨收）· 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b>：当日买入当日可卖 · <b>T+1</b>：当日买入次日方可卖出 · 大额买卖会按供需推高/压低股价（单笔冲击上限 ±3%）
+        <b>限价委托</b> · 买入限价 ≥ 卖一价立即成交，否则挂单待成交 · 涨跌停 <b id="rLimit">±10%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b>T+1</b> 次日可卖 · 未成交委托可随时撤单
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -199,10 +237,22 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
       </div>
     </div>
 
+    <!-- 板块排行 -->
+    <div class="card">
+      <div class="section-title" style="margin-top:0">📊 板块排行 <span style="font-size:12px;color:var(--muted);font-weight:400">按成分股平均涨跌幅</span></div>
+      <div id="sectorRank"><div class="empty">加载中…</div></div>
+    </div>
+
     <!-- 我的持仓 -->
     <div class="card">
       <div class="section-title" style="margin-top:0">我的持仓</div>
       <div id="holdings"><div class="empty">登录后查看持仓</div></div>
+    </div>
+
+    <!-- 我的委托 -->
+    <div class="card">
+      <div class="section-title" style="margin-top:0">📝 我的委托 <span style="font-size:12px;color:var(--muted);font-weight:400">未成交可撤单</span></div>
+      <div id="myOrders"><div class="empty">登录后查看委托</div></div>
     </div>
 
     <!-- 排行榜 -->
@@ -222,7 +272,10 @@ let selected = null;
 let stocksMap = {};
 let indexInfo = null;
 let breadth = { up: 0, down: 0, flat: 0 };
-let chartMode = 'intraday';
+let chartMode = 'intraday';   // 'intraday' | 'kline'
+let klinePeriod = 'day';      // 1m/5m/15m/30m/60m/day/week/month
+let subIndicator = 'MACD';    // 副图指标：MACD/KDJ/RSI/VOL/BOLL
+let klineCache = {};          // code -> { period: bars }
 let feed = [];
 let newsList = [];
 let newsExpanded = false;
@@ -232,6 +285,7 @@ let klineView = null;
 let fees = { buyFeeRate: 0.001, sellFeeRate: 0.002, limitPct: 0.10, t1: true };
 let ws = null;
 let wsConnected = false;
+let marketStatus = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -244,15 +298,45 @@ function fmtVol(n) {
   return n + '手';
 }
 function fmtAmt(n) {
-  if (n >= 1e12) return (n / 1e12).toFixed(2) + '万亿';
-  if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
-  if (n >= 1e4) return (n / 1e4).toFixed(2) + '万';
-  return n.toFixed(0);
+  const a = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (a >= 1e12) return sign + (a / 1e12).toFixed(2) + '万亿';
+  if (a >= 1e8) return sign + (a / 1e8).toFixed(2) + '亿';
+  if (a >= 1e4) return sign + (a / 1e4).toFixed(2) + '万';
+  return sign + a.toFixed(0);
 }
 function chgClass(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : 'flat'); }
 function setStatus(t, cls) { $('status').textContent = t; $('status').className = 'status' + (cls ? ' ' + cls : ''); }
 function hhmmss() { const d = new Date(); return d.toTimeString().slice(0, 8); }
 function fmtTime(ts) { if (!ts) return hhmmss(); return new Date(ts).toTimeString().slice(0, 8); }
+
+// ---- 市场时段：更新徽标 + 交易按钮可用性 ----
+function applyStatus(st) {
+  if (!st || !st.phase) return;
+  marketStatus = st;
+  const el = $('phaseBadge');
+  if (el) {
+    el.textContent = st.text || st.phase;
+    const cls = st.continuous ? 'continuous' : (st.phase === 'call_auction' ? 'auction' : 'paused');
+    el.className = 'phase-badge ' + cls;
+  }
+  const canTrade = !!st.continuous;
+  $('btnBuy').disabled = !canTrade;
+  $('btnSell').disabled = !canTrade;
+  if (!canTrade) {
+    $('btnBuy').title = '当前为' + (st.text || st.phase) + '，连续竞价时段方可交易';
+    $('btnSell').title = '当前为' + (st.text || st.phase) + '，连续竞价时段方可交易';
+  } else {
+    $('btnBuy').title = '';
+    $('btnSell').title = '';
+  }
+}
+async function loadStatus() {
+  try {
+    const j = await (await fetch('/api/market/status')).json();
+    applyStatus(j);
+  } catch (e) { /* ignore */ }
+}
 
 $('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
 
@@ -276,6 +360,7 @@ function connectWS() {
 }
 
 function onQuote(m) {
+  if (m.status) applyStatus(m.status);
   indexInfo = m.index;
   breadth = m.breadth || { up: 0, down: 0, flat: 0 };
   (m.ticks || []).forEach((t) => {
@@ -301,7 +386,14 @@ function onTrade(t) {
   if (feed.length > 50) feed.pop();
   renderFeed();
   loadRank();
-  if (GCAuth.isLoggedIn()) loadHoldings();
+  loadSectors();
+  // 局部更新该股票资金流向（主动买 +，主动卖 -），刷新基本面/板块
+  const s = t.code && stocksMap[t.code];
+  if (s) {
+    s.inflow = (s.inflow || 0) + (t.side === 'sell' ? -t.amount : t.amount);
+    if (selected === t.code) renderFundamentals(stocksMap[selected]);
+  }
+  if (GCAuth.isLoggedIn()) { loadHoldings(); loadOrders(); }
 }
 
 function onNews(n) {
@@ -387,7 +479,7 @@ function applyFees() {
 // ---- 分时图 ----
 function drawIntraday(history, prevClose) {
   const svg = $('chart');
-  const W = 600, H = 220, P = 8, PAD = 26;
+  const W = 600, H = 360, P = 8, PAD = 26;
   svg.innerHTML = '';
   klineView = null;
   svg.onmousemove = null;
@@ -428,51 +520,163 @@ function calcMA(closes, period) {
   return ma;
 }
 
+// ---- 技术指标 ----
+function calcEMA(vals, period) {
+  const k = 2 / (period + 1);
+  const out = [];
+  let prev = null;
+  for (let i = 0; i < vals.length; i++) {
+    prev = (prev == null) ? vals[i] : vals[i] * k + prev * (1 - k);
+    out.push(prev);
+  }
+  return out;
+}
+function calcMACD(closes) {
+  const ema12 = calcEMA(closes, 12), ema26 = calcEMA(closes, 26);
+  const dif = closes.map((_, i) => ema12[i] - ema26[i]);
+  const dea = calcEMA(dif, 9);
+  const hist = dif.map((d, i) => 2 * (d - dea[i]));
+  return { dif, dea, hist };
+}
+function calcKDJ(kline) {
+  const n = 9, K = [], D = [], J = [];
+  let prevK = 50, prevD = 50;
+  for (let i = 0; i < kline.length; i++) {
+    const start = Math.max(0, i - n + 1);
+    let hh = -Infinity, ll = Infinity;
+    for (let j = start; j <= i; j++) { hh = Math.max(hh, kline[j].h); ll = Math.min(ll, kline[j].l); }
+    const rsv = (hh - ll) === 0 ? 50 : (kline[i].c - ll) / (hh - ll) * 100;
+    prevK = (2 / 3) * prevK + (1 / 3) * rsv;
+    prevD = (2 / 3) * prevD + (1 / 3) * prevK;
+    K.push(prevK); D.push(prevD); J.push(3 * prevK - 2 * prevD);
+  }
+  return { k: K, d: D, j: J };
+}
+function calcRSI(closes, period) {
+  const out = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period) { out.push(null); continue; }
+    let g = 0, l = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const ch = closes[j] - closes[j - 1];
+      if (ch > 0) g += ch; else l -= ch;
+    }
+    out.push(l === 0 ? 100 : 100 - 100 / (1 + g / l));
+  }
+  return out;
+}
+function calcBOLL(closes, period, mult) {
+  const mid = calcMA(closes, period);
+  const up = [], low = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (mid[i] == null) { up.push(null); low.push(null); continue; }
+    let s = 0;
+    for (let j = i - period + 1; j <= i; j++) s += Math.pow(closes[j] - mid[i], 2);
+    const sd = Math.sqrt(s / period);
+    up.push(mid[i] + mult * sd); low.push(mid[i] - mult * sd);
+  }
+  return { mid, up, low };
+}
+
 function drawKline(kline) {
   const svg = $('chart');
-  const W = 600, H = 220, P = 8, PAD = 8, VOLH = 40;
+  const W = 600, H = 360, P = 8;
   if (!kline || kline.length < 2) { svg.innerHTML = ''; klineView = null; return; }
-  const closes = kline.map((k) => k.c);
-  const ma5 = calcMA(closes, 5), ma10 = calcMA(closes, 10), ma20 = calcMA(closes, 20);
-  const maVals = [].concat(ma5, ma10, ma20).filter((v) => v != null);
-  const lows = kline.map((k) => k.l), highs = kline.map((k) => k.h);
-  const min = Math.min.apply(null, lows.concat(maVals));
-  const max = Math.max.apply(null, highs.concat(maVals));
-  const span = (max - min) || 1;
-  const chartH = H - PAD - VOLH - 6;
   const n = kline.length;
   const step = (W - P * 2) / n;
-  const bw = Math.max(1, step * 0.6);
-  const Y = (v) => PAD + (1 - (v - min) / span) * chartH;
-  const maxVol = Math.max.apply(null, kline.map((k) => k.v)) || 1;
+  const bw = Math.max(1, step * 0.66);
+  const chartTop = 12, chartH = 196;
+  const indTop = chartTop + chartH + 12, indH = H - indTop - 10;
+  const closes = kline.map((k) => k.c);
+  const ma5 = calcMA(closes, 5), ma10 = calcMA(closes, 10), ma20 = calcMA(closes, 20);
+  const showBoll = subIndicator === 'BOLL';
+  const boll = showBoll ? calcBOLL(closes, 20, 2) : null;
+
+  let min = Infinity, max = -Infinity;
+  kline.forEach((k) => { if (k.l < min) min = k.l; if (k.h > max) max = k.h; });
+  [].concat(ma5, ma10, ma20).forEach((v) => { if (v != null) { if (v < min) min = v; if (v > max) max = v; } });
+  if (boll) [].concat(boll.up, boll.low).forEach((v) => { if (v != null) { if (v < min) min = v; if (v > max) max = v; } });
+  const span = (max - min) || 1;
+  const Y = (v) => chartTop + (1 - (v - min) / span) * chartH;
+  const cx = (i) => P + step * i + step / 2;
+
   let parts = [];
   kline.forEach((k, i) => {
-    const x = P + step * i + step / 2;
+    const x = cx(i);
     const up = k.c >= k.o;
     const color = up ? '#e0565c' : '#3ecf8e';
     parts.push('<line x1="' + x.toFixed(1) + '" y1="' + Y(k.h).toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + Y(k.l).toFixed(1) + '" stroke="' + color + '" stroke-width="1"/>');
     const yTop = Y(Math.max(k.o, k.c)), yBot = Y(Math.min(k.o, k.c));
     const hh = Math.max(1, yBot - yTop);
     parts.push('<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" fill="' + color + '"/>');
-    const vh = (k.v / maxVol) * (VOLH - 4);
-    parts.push('<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + (H - P - vh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + vh.toFixed(1) + '" fill="' + color + '" opacity="0.45"/>');
   });
-  const maLine = (ma, color) => {
+  const line = (arr, color) => {
     const pts = [];
-    ma.forEach((v, i) => {
-      if (v == null) return;
-      const x = P + step * i + step / 2;
-      pts.push(x.toFixed(1) + ',' + Y(v).toFixed(1));
-    });
+    arr.forEach((v, i) => { if (v == null) return; pts.push(cx(i).toFixed(1) + ',' + Y(v).toFixed(1)); });
     if (pts.length > 1) parts.push('<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.2"/>');
   };
-  maLine(ma5, '#f5a623');
-  maLine(ma10, '#4a90e2');
-  maLine(ma20, '#b468f0');
+  line(ma5, '#f5a623'); line(ma10, '#4a90e2'); line(ma20, '#b468f0');
+  if (boll) { line(boll.up, '#e0565c'); line(boll.mid, '#8b90a8'); line(boll.low, '#3ecf8e'); }
+
+  // ---- 副图区（成交量 / MACD / KDJ / RSI） ----
+  const subLine = (arr, color, YS) => {
+    const pts = [];
+    arr.forEach((v, i) => { if (v == null) return; pts.push(cx(i).toFixed(1) + ',' + YS(v).toFixed(1)); });
+    return pts.length > 1 ? '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.1"/>' : '';
+  };
+  const drawVol = () => {
+    const maxVol = Math.max.apply(null, kline.map((k) => k.v || 0)) || 1;
+    const arr = [];
+    kline.forEach((k, i) => {
+      const x = cx(i);
+      const color = k.c >= k.o ? '#e0565c' : '#3ecf8e';
+      const vh = (k.v || 0) / maxVol * indH;
+      arr.push('<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + (indTop + indH - vh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, vh).toFixed(1) + '" fill="' + color + '" opacity="0.5"/>');
+    });
+    return arr;
+  };
+
+  if (subIndicator === 'MACD') {
+    const { dif, dea, hist } = calcMACD(closes);
+    let mn = 0, mx = 0;
+    [].concat(dif, dea, hist).forEach((v) => { if (v < mn) mn = v; if (v > mx) mx = v; });
+    const sp = (mx - mn) || 1;
+    const YS = (v) => indTop + (1 - (v - mn) / sp) * indH;
+    const zeroY = YS(0);
+    parts.push('<line x1="' + P + '" y1="' + zeroY.toFixed(1) + '" x2="' + (W - P) + '" y2="' + zeroY.toFixed(1) + '" stroke="#8b90a8" stroke-width="0.6"/>');
+    hist.forEach((v, i) => {
+      if (v == null) return;
+      const x = cx(i), y = YS(v);
+      const hh2 = Math.max(0.5, Math.abs(YS(0) - y));
+      parts.push('<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + Math.min(y, YS(0)).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh2.toFixed(1) + '" fill="' + (v >= 0 ? '#e0565c' : '#3ecf8e') + '" opacity="0.7"/>');
+    });
+    parts.push(subLine(dif, '#f5a623', YS));
+    parts.push(subLine(dea, '#4a90e2', YS));
+  } else if (subIndicator === 'KDJ') {
+    const { k, d, j } = calcKDJ(kline);
+    let mn = Infinity, mx = -Infinity;
+    [].concat(k, d, j).forEach((v) => { if (v < mn) mn = v; if (v > mx) mx = v; });
+    const sp = (mx - mn) || 1;
+    const YS = (v) => indTop + (1 - (v - mn) / sp) * indH;
+    parts.push(subLine(k, '#f5a623', YS));
+    parts.push(subLine(d, '#4a90e2', YS));
+    parts.push(subLine(j, '#b468f0', YS));
+  } else if (subIndicator === 'RSI') {
+    const r6 = calcRSI(closes, 6), r12 = calcRSI(closes, 12), r24 = calcRSI(closes, 24);
+    const YS = (v) => indTop + (1 - v / 100) * indH;
+    [30, 70].forEach((lv) => parts.push('<line x1="' + P + '" y1="' + YS(lv).toFixed(1) + '" x2="' + (W - P) + '" y2="' + YS(lv).toFixed(1) + '" stroke="#8b90a8" stroke-width="0.6" stroke-dasharray="3 3"/>'));
+    parts.push(subLine(r6, '#f5a623', YS));
+    parts.push(subLine(r12, '#4a90e2', YS));
+    parts.push(subLine(r24, '#b468f0', YS));
+  } else {
+    // VOL 或 BOLL（BOLL 主图已叠加，副图画成交量）
+    parts = parts.concat(drawVol());
+  }
+
   svg.innerHTML = parts.join('') +
     '<g id="crosshair" style="pointer-events:none"></g>' +
-    '<rect id="klineHit" x="' + P + '" y="' + PAD + '" width="' + (W - P * 2) + '" height="' + chartH + '" fill="transparent"/>';
-  klineView = { kline, W, H, P, PAD, VOLH, chartH, step, bw, Y, maxVol };
+    '<rect id="klineHit" x="' + P + '" y="' + chartTop + '" width="' + (W - P * 2) + '" height="' + chartH + '" fill="transparent"/>';
+  klineView = { kline, W, H, P, chartTop, chartH, indTop, indH, step, bw, Y, cx };
   attachCrosshair(svg);
 }
 
@@ -483,11 +687,12 @@ function attachCrosshair(svg) {
     if (!r.width || !r.height) return;
     const x = (e.clientX - r.left) / r.width * klineView.W;
     const y = (e.clientY - r.top) / r.height * klineView.H;
-    const { kline, W, H, P, PAD, chartH, step, Y } = klineView;
+    const { kline, W, P, chartTop, chartH, step, cx, Y } = klineView;
+    if (y < chartTop || y > chartTop + chartH) { svg.onmouseleave(); return; }
     const idx = Math.round((x - P - step / 2) / step);
     if (idx < 0 || idx >= kline.length) return;
     const k = kline[idx];
-    const cx = P + step * idx + step / 2;
+    const ccx = cx(idx);
     const g = $('crosshair');
     if (!g) return;
     const color = k.c >= k.o ? '#e0565c' : '#3ecf8e';
@@ -495,55 +700,86 @@ function attachCrosshair(svg) {
     const chg = prevC > 0 ? (k.c - prevC) / prevC * 100 : 0;
     const info = '开 ' + k.o.toFixed(2) + '  高 ' + k.h.toFixed(2) + '  低 ' + k.l.toFixed(2) + '  收 ' + k.c.toFixed(2) + '  ' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
     const labelW = 178, labelH = 20;
-    let lx = cx + 8; if (lx + labelW > W - 4) lx = cx - labelW - 8;
-    let ly = y - labelH - 6; if (ly < 4) ly = y + 8;
-    if (ly + labelH > H - 4) ly = H - labelH - 4;
+    let lx = ccx + 8; if (lx + labelW > W - 4) lx = ccx - labelW - 8;
+    let ly = y - labelH - 6; if (ly < chartTop + 4) ly = y + 8;
+    if (ly + labelH > chartTop + chartH - 4) ly = chartTop + chartH - labelH - 4;
     g.innerHTML =
-      '<line x1="' + cx.toFixed(1) + '" y1="' + PAD + '" x2="' + cx.toFixed(1) + '" y2="' + (PAD + chartH) + '" stroke="#8b90a8" stroke-width="0.8" stroke-dasharray="3 3"/>' +
+      '<line x1="' + ccx.toFixed(1) + '" y1="' + chartTop + '" x2="' + ccx.toFixed(1) + '" y2="' + (chartTop + chartH) + '" stroke="#8b90a8" stroke-width="0.8" stroke-dasharray="3 3"/>' +
       '<line x1="' + P + '" y1="' + y.toFixed(1) + '" x2="' + (W - P) + '" y2="' + y.toFixed(1) + '" stroke="#8b90a8" stroke-width="0.8" stroke-dasharray="3 3"/>' +
-      '<circle cx="' + cx.toFixed(1) + '" cy="' + Y(k.c).toFixed(1) + '" r="3" fill="' + color + '"/>' +
+      '<circle cx="' + ccx.toFixed(1) + '" cy="' + Y(k.c).toFixed(1) + '" r="3" fill="' + color + '"/>' +
       '<rect x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" width="' + labelW + '" height="' + labelH + '" rx="4" fill="#1b1d26" opacity="0.94"/>' +
       '<text x="' + (lx + 8).toFixed(1) + '" y="' + (ly + 13).toFixed(1) + '" font-size="11" fill="#ffffff">' + info + '</text>';
   };
   svg.onmouseleave = () => { const g = $('crosshair'); if (g) g.innerHTML = ''; };
 }
 
+const PERIOD_TABS = { intraday: 'tabIntraday', '1m': 'tab1m', '5m': 'tab5m', '15m': 'tab15m', '30m': 'tab30m', '60m': 'tab60m', day: 'tabDay', week: 'tabWeek', month: 'tabMonth' };
+const PERIOD_NAMES = { '1m': '1分', '5m': '5分', '15m': '15分', '30m': '30分', '60m': '60分', day: '日K', week: '周K', month: '月K' };
+
 function renderChart() {
   const s = stocksMap[selected];
   if (!s) return;
-  if (chartMode === 'kline') {
-    $('tabKline').classList.add('active'); $('tabIntraday').classList.remove('active');
-    $('chartInfo').innerHTML = '近 ' + s.kline.length + ' 日 · <span style="color:#f5a623">MA5</span> <span style="color:#4a90e2">MA10</span> <span style="color:#b468f0">MA20</span>';
-    drawKline(s.kline);
-  } else {
-    $('tabIntraday').classList.add('active'); $('tabKline').classList.remove('active');
+  // 周期 tab 高亮
+  const activeId = chartMode === 'intraday' ? 'tabIntraday' : (PERIOD_TABS[klinePeriod] || 'tabDay');
+  document.querySelectorAll('.chart-tabs > button').forEach((b) => b.classList.toggle('active', b.id === activeId));
+  // 副图按钮（仅 K 线模式显示）
+  $('subTabs').style.display = chartMode === 'kline' ? 'flex' : 'none';
+  document.querySelectorAll('#subTabs button').forEach((b) => b.classList.toggle('active', b.id === 'sub' + subIndicator));
+
+  if (chartMode === 'intraday') {
     $('chartInfo').textContent = '今日分时 · 昨收 ' + s.prevClose.toFixed(2);
     drawIntraday(s.history, s.prevClose);
+    return;
+  }
+  const pname = PERIOD_NAMES[klinePeriod] || '日K';
+  const cache = klineCache[selected] || (klineCache[selected] = {});
+  if (cache[klinePeriod]) {
+    $('chartInfo').innerHTML = pname + ' · ' + cache[klinePeriod].length + ' 根 · <span style="color:#f5a623">MA5</span> <span style="color:#4a90e2">MA10</span> <span style="color:#b468f0">MA20</span>';
+    drawKline(cache[klinePeriod]);
+  } else {
+    $('chartInfo').textContent = pname + ' · 加载中…';
+    loadKline(selected, klinePeriod);
   }
 }
 
-// ---- 盘口五档 ----
-function genOrderbook(price) {
-  const bids = [], asks = [];
-  for (let i = 1; i <= 5; i++) {
-    bids.push({ p: round2(price - i * 0.01), v: Math.round(80 + Math.random() * 300) });
-    asks.push({ p: round2(price + i * 0.01), v: Math.round(80 + Math.random() * 300) });
-  }
-  return { bids, asks };
+async function loadKline(code, period) {
+  try {
+    const j = await (await fetch('/api/market/kline/' + encodeURIComponent(code) + '?period=' + encodeURIComponent(period))).json();
+    const bars = j.bars || [];
+    const cache = klineCache[code] || (klineCache[code] = {});
+    cache[period] = bars;
+    if (selected === code && chartMode === 'kline' && klinePeriod === period) renderChart();
+  } catch (e) { /* ignore */ }
+}
+
+// ---- 盘口五档（真实委托 + 虚拟做市深度，服务端返回） ----
+let orderbookCache = {};
+function fmtShares(n) {
+  if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿股';
+  if (n >= 1e4) return (n / 1e4).toFixed(2) + '万股';
+  return Math.round(n) + '股';
+}
+async function loadOrderbook(code) {
+  try {
+    const j = await (await fetch('/api/market/orderbook/' + encodeURIComponent(code))).json();
+    orderbookCache[code] = j;
+    if (selected === code) renderOrderbook();
+  } catch (e) { /* ignore */ }
 }
 function renderOrderbook() {
   const s = stocksMap[selected];
   const box = $('orderbook');
   if (!s) { box.innerHTML = ''; return; }
-  const ob = genOrderbook(s.price);
-  const asks = ob.asks.slice().reverse();
-  const bids = ob.bids.slice();
+  const ob = orderbookCache[selected] || { bids: [], asks: [] };
+  const asks = (ob.asks || []).slice().reverse();
+  const bids = ob.bids || [];
+  const row = (label, cls, a) => '<div class="ob-row"><span class="' + cls + '">' + label + '</span><span>' + a.price.toFixed(2) + '</span><span>' + fmtShares(a.qty) + '</span></div>';
   box.innerHTML =
-    '<div class="ob-side"><div class="ob-title">卖盘（手）</div>' +
-      asks.map((a, i) => '<div class="ob-row"><span class="down">卖' + (5 - i) + '</span><span>' + a.p.toFixed(2) + '</span><span>' + a.v + '</span></div>').join('') +
+    '<div class="ob-side"><div class="ob-title">卖盘（股）</div>' +
+      (asks.length ? asks.map((a, i) => row('卖' + (asks.length - i), 'down', a)).join('') : '<div class="ob-row"><span>—</span></div>') +
     '</div>' +
-    '<div class="ob-side"><div class="ob-title">买盘（手）</div>' +
-      bids.map((b, i) => '<div class="ob-row"><span class="up">买' + (i + 1) + '</span><span>' + b.p.toFixed(2) + '</span><span>' + b.v + '</span></div>').join('') +
+    '<div class="ob-side"><div class="ob-title">买盘（股）</div>' +
+      (bids.length ? bids.map((b, i) => row('买' + (i + 1), 'up', b)).join('') : '<div class="ob-row"><span>—</span></div>') +
     '</div>';
 }
 
@@ -572,12 +808,39 @@ function paintDetail(code) {
   $('stOpen').className = 'v ' + chgClass(s.open - s.prevClose);
   $('stHigh').className = 'v ' + chgClass(s.high - s.prevClose);
   $('stLow').className = 'v ' + chgClass(s.low - s.prevClose);
+  renderFundamentals(s);
   renderChart();
   renderOrderbook();
 }
+
+// ---- 基本面 + 资金流向（PE/PB/市值/换手率/主力净流入） ----
+function renderFundamentals(s) {
+  if (!s) return;
+  const pe = s.eps > 0 ? s.price / s.eps : null;
+  const pb = s.bvps > 0 ? s.price / s.bvps : null;
+  const totalCap = s.totalShares ? s.price * s.totalShares : null;
+  const floatCap = s.floatShares ? s.price * s.floatShares : null;
+  const turnover = s.floatShares ? s.volume * 100 / s.floatShares * 100 : null;
+  $('fPe').textContent = pe != null ? pe.toFixed(2) : '--';
+  $('fPb').textContent = pb != null ? pb.toFixed(2) : '--';
+  $('fCap').textContent = totalCap != null ? fmtAmt(totalCap) : '--';
+  $('fFloatCap').textContent = floatCap != null ? fmtAmt(floatCap) : '--';
+  $('fTurn').textContent = turnover != null ? turnover.toFixed(2) + '%' : '--';
+  const inf = s.inflow || 0;
+  const el = $('fInflow');
+  el.textContent = (inf >= 0 ? '+' : '') + fmtAmt(inf);
+  el.className = 'v ' + chgClass(inf);
+}
 function selectStock(code) {
   selected = code;
+  // 默认委托价：买=卖一（现价+1 tick）、卖=买一（现价-1 tick），用户可自行修改
+  const s = stocksMap[code];
+  if (s) {
+    $('buyPrice').value = round2(s.price + 0.01).toFixed(2);
+    $('sellPrice').value = round2(s.price - 0.01).toFixed(2);
+  }
   paintDetail(code);
+  loadOrderbook(code);
   document.querySelectorAll('#stockTable tbody tr').forEach((tr) => {
     tr.classList.toggle('sel-row', tr.dataset.code === code);
   });
@@ -637,10 +900,11 @@ async function loadTrades() {
 async function loadStocks() {
   try {
     const j = await (await fetch('/api/market/stocks')).json();
-    if (j.minBuyUsd) { minBuyUsd = j.minBuyUsd; $('minBadge').textContent = '最低投入 $' + minBuyUsd; $('buyAmt').min = minBuyUsd; }
+    if (j.minBuyUsd) { minBuyUsd = j.minBuyUsd; $('minBadge').textContent = '最低买入 $' + minBuyUsd; }
     if (j.fees) { fees = j.fees; applyFees(); }
     if (j.news && j.news.length) { newsList = j.news.slice(0, 30); renderNews(); }
     if (j.newsTtlHours) { newsTtlHours = j.newsTtlHours; $('newsTtl').textContent = newsTtlHours; }
+    if (j.status) applyStatus(j.status);
     indexInfo = j.index; breadth = j.breadth || { up: 0, down: 0, flat: 0 };
     stocksMap = {};
     (j.list || []).forEach((s) => { stocksMap[s.code] = s; });
@@ -678,45 +942,100 @@ function renderTable() {
   }
 }
 
-// ---- 交易 ----
-async function buy() {
+// ---- 交易（限价委托） ----
+async function placeOrder(side) {
   const token = GCAuth.getToken();
   if (!token) { alert('请先登录 NewAPI 账号'); return; }
   if (!selected) { alert('请先选择一只股票'); return; }
-  const amount = parseFloat($('buyAmt').value);
-  if (!(amount >= minBuyUsd)) { alert('最低投入 $' + minBuyUsd + '（无上限）'); return; }
-  if (!confirm('确认投入 $' + amount + ' 买入 ' + stocksMap[selected].name + ' ？将立即从额度扣除。')) return;
-  setStatus('买入中…');
-  const r = await fetch('/api/market/buy', {
+  const s = stocksMap[selected];
+  const price = parseFloat(side === 'buy' ? $('buyPrice').value : $('sellPrice').value);
+  const qty = parseFloat(side === 'buy' ? $('buyQty').value : $('sellQty').value);
+  if (!(price > 0)) { alert('请输入委托价格'); return; }
+  if (!(qty > 0)) { alert('请输入委托数量（股）'); return; }
+  const verb = side === 'buy' ? '买入' : '卖出';
+  if (!confirm('确认' + verb + ' ' + s.name + '：' + qty + ' 股 @ $' + price.toFixed(2) + ' ？')) return;
+  setStatus(verb + '委托提交中…');
+  const r = await fetch('/api/market/order', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, code: selected, amount }),
+    body: JSON.stringify({ token, code: selected, side, price, qty }),
   });
   const j = await r.json();
-  if (r.status !== 200 || j.code !== 'ok') { setStatus(j.error || '买入失败', 'error'); return; }
-  const lockTxt = stocksMap[selected].t0 ? '（T+0 当日可卖）' : '（T+1 次日可卖）';
-  setStatus('买入成功：' + j.boughtShares.toFixed(4) + ' 股 @ $' + j.price.toFixed(2) + '，本金 $' + j.costUsd.toFixed(2) + ' + 手续费 $' + (j.feeUsd || 0).toFixed(2) + lockTxt + '，推高 ' + (j.impactPct != null ? j.impactPct.toFixed(2) : '0.00') + '%');
+  if (r.status !== 200 || j.code !== 'ok') { setStatus(j.error || verb + '失败', 'error'); return; }
+  let msg = verb + '委托已提交：';
+  if (j.filled > 0) {
+    msg += '已成交 ' + j.filled + ' 股 @ $' + (j.avgPx || 0).toFixed(2);
+    if (j.filled < j.qty) msg += '（部分成交，剩余 ' + (j.qty - j.filled) + ' 股挂单）';
+    if (side === 'buy' && j.spentUsd != null) msg += ' · 花费 $' + j.spentUsd.toFixed(2);
+    if (side === 'sell' && j.netUsd != null) msg += ' · 回款 $' + j.netUsd.toFixed(2);
+  } else {
+    msg += '未成交（已挂单，等待对手方）';
+  }
+  setStatus(msg);
   if (j.quota != null) $('balanceUsd').textContent = '$' + (j.quota / QUOTA_PER_UNIT).toFixed(2);
   loadHoldings();
+  loadOrders();
+  loadOrderbook(selected);
+}
+function buy() { return placeOrder('buy'); }
+function sell() { return placeOrder('sell'); }
+
+// 卖出「全部」：填入当前可卖股数
+async function sellAll() {
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  if (!selected) { alert('请先选择一只股票'); return; }
+  try {
+    const j = await (await fetch('/api/market/holdings?token=' + encodeURIComponent(token))).json();
+    const h = (j.list || []).find((x) => x.code === selected);
+    if (!h) { alert('该股票无持仓'); return; }
+    $('sellQty').value = h.available.toFixed(4);
+  } catch (e) { alert('获取可卖数量失败'); }
 }
 
-async function sell() {
+// ---- 委托列表 / 撤单 ----
+async function loadOrders() {
   const token = GCAuth.getToken();
-  if (!token) { alert('请先登录 NewAPI 账号'); return; }
-  if (!selected) { alert('请先选择一只股票'); return; }
-  const shares = $('sellShares').value.trim();
-  if (!shares) { alert('请输入卖出股数，或填 all 全卖'); return; }
-  if (!confirm('确认卖出 ' + shares + ' 股 ' + stocksMap[selected].name + ' ？')) return;
-  setStatus('卖出中…');
-  const r = await fetch('/api/market/sell', {
+  const box = $('myOrders');
+  if (!token) { box.innerHTML = '<div class="empty">登录后查看委托</div>'; return; }
+  try {
+    const j = await (await fetch('/api/market/orders?token=' + encodeURIComponent(token))).json();
+    const list = j.list || [];
+    if (!list.length) { box.innerHTML = '<div class="empty">暂无委托</div>'; return; }
+    box.innerHTML = '';
+    list.slice(0, 30).forEach((o) => {
+      const div = document.createElement('div');
+      div.className = 'hold-item';
+      const sideTxt = o.side === 'buy' ? '买入' : '卖出';
+      const sideCls = o.side === 'buy' ? 'up' : 'down';
+      const statusTxt = o.status === 'open'
+        ? (o.filled > 0 ? '部分成交 ' + o.filled + '/' + o.qty : '待成交')
+        : (o.status === 'done' ? '已成交' : '已撤单');
+      div.innerHTML =
+        '<span class="nm ' + sideCls + '">' + sideTxt + '</span>' +
+        '<span class="cd">' + escapeHtml(o.name) + ' ' + o.code + '</span>' +
+        '<span style="color:var(--muted)">@ ' + o.price.toFixed(2) + ' · ' + o.qty + ' 股</span>' +
+        '<span class="val">' + statusTxt + '</span>' +
+        (o.status === 'open' ? '<button class="danger" style="padding:5px 10px;font-size:12px">撤单</button>' : '');
+      if (o.status === 'open') div.querySelector('button').onclick = () => cancelOrder(o.id);
+      box.appendChild(div);
+    });
+  } catch (e) { box.innerHTML = '<div class="empty">委托加载失败</div>'; }
+}
+
+async function cancelOrder(id) {
+  const token = GCAuth.getToken();
+  if (!token || !confirm('确认撤销该委托？')) return;
+  const r = await fetch('/api/market/order/' + id + '/cancel', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, code: selected, shares }),
+    body: JSON.stringify({ token }),
   });
   const j = await r.json();
-  if (r.status !== 200 || j.code !== 'ok') { setStatus(j.error || '卖出失败', 'error'); return; }
-  setStatus('卖出成功：' + j.soldShares.toFixed(4) + ' 股，回款 $' + j.proceeds.toFixed(2) + ' - 手续费 $' + (j.feeUsd || 0).toFixed(2) + ' = $' + (j.netUsd != null ? j.netUsd.toFixed(2) : j.proceeds.toFixed(2)) + '，盈亏 $' + j.pnl.toFixed(2) + '（压低 ' + (j.impactPct != null ? j.impactPct.toFixed(2) : '0.00') + '%）');
+  if (r.status !== 200 || j.code !== 'ok') { alert(j.error || '撤单失败'); return; }
+  setStatus('已撤单' + (j.refundQuota > 0 ? '，退回冻结额度' : ''));
   if (j.quota != null) $('balanceUsd').textContent = '$' + (j.quota / QUOTA_PER_UNIT).toFixed(2);
-  $('sellShares').value = '';
+  loadOrders();
   loadHoldings();
+  loadOrderbook(selected);
 }
 
 // ---- 持仓 ----
@@ -742,7 +1061,7 @@ async function loadHoldings() {
         '<span class="val">现价 $' + h.price.toFixed(2) + '<br>市值 $' + h.marketValue.toFixed(2) +
         ' <span class="' + pnlCls + '">' + fmtUsd(h.pnl) + ' (' + fmtPct(h.pnlPct) + ')</span></span>' +
         '<button class="danger" style="padding:6px 12px;font-size:12px">卖出</button>';
-      div.querySelector('button').onclick = () => { selectStock(h.code); $('sellShares').value = 'all'; };
+      div.querySelector('button').onclick = () => { selectStock(h.code); $('sellQty').value = h.available.toFixed(4); };
       box.appendChild(div);
     });
   } catch (e) { box.innerHTML = '<div class="empty">持仓加载失败</div>'; }
@@ -769,6 +1088,29 @@ async function loadRank() {
   } catch (e) { box.innerHTML = '<div class="empty">排行榜加载失败</div>'; }
 }
 
+// ---- 板块排行 ----
+async function loadSectors() {
+  const box = $('sectorRank');
+  try {
+    const j = await (await fetch('/api/market/sectors')).json();
+    const list = j.list || [];
+    if (!list.length) { box.innerHTML = '<div class="empty">暂无板块数据</div>'; return; }
+    box.innerHTML = '';
+    list.forEach((r, i) => {
+      const div = document.createElement('div');
+      div.className = 'sector-row';
+      const chgCls = r.changePct > 0 ? 'up' : (r.changePct < 0 ? 'down' : 'flat');
+      const flowCls = r.inflow >= 0 ? 'up' : 'down';
+      div.innerHTML =
+        '<div class="nm">' + escapeHtml(r.sector) + '</div>' +
+        '<span class="' + chgCls + '" style="font-weight:700;font-variant-numeric:tabular-nums">' + fmtPct(r.changePct) + '</span>' +
+        '<span class="stk">' + r.up + '涨 ' + r.down + '跌</span>' +
+        '<span class="val">主力 <span class="' + flowCls + '">' + (r.inflow >= 0 ? '+' : '') + fmtAmt(r.inflow) + '</span></span>';
+      box.appendChild(div);
+    });
+  } catch (e) { box.innerHTML = '<div class="empty">板块排行加载失败</div>'; }
+}
+
 // ---- 余额刷新 ----
 async function refreshBalance() {
   const m = await GCAuth.me();
@@ -781,22 +1123,35 @@ function escapeHtml(s) {
 
 $('btnBuy').onclick = buy;
 $('btnSell').onclick = sell;
+$('btnSellAll').onclick = sellAll;
 $('tabIntraday').onclick = () => { chartMode = 'intraday'; renderChart(); };
-$('tabKline').onclick = () => { chartMode = 'kline'; renderChart(); };
+const KLINE_TABS = { tab1m: '1m', tab5m: '5m', tab15m: '15m', tab30m: '30m', tab60m: '60m', tabDay: 'day', tabWeek: 'week', tabMonth: 'month' };
+for (const id in KLINE_TABS) {
+  $(id).onclick = () => { chartMode = 'kline'; klinePeriod = KLINE_TABS[id]; renderChart(); };
+}
+const SUB_TABS = { subMACD: 'MACD', subKDJ: 'KDJ', subRSI: 'RSI', subVOL: 'VOL', subBOLL: 'BOLL' };
+for (const id in SUB_TABS) {
+  $(id).onclick = () => { subIndicator = SUB_TABS[id]; if (chartMode === 'kline') renderChart(); };
+}
 
 // 初始化
 GCAuth.renderAuthBar($('authBar'), () => {
   GCAuth.me().then((m) => {
-    if (m) { refreshBalance(); loadHoldings(); }
+    if (m) { refreshBalance(); loadHoldings(); loadOrders(); }
   });
 });
 loadStocks();
 loadRank();
+loadSectors();
 loadTrades();
+loadStatus();
+loadOrders();
 connectWS();
 // WS 失效时的轮询兜底 + 余额兜底
 setInterval(() => { if (!wsConnected) loadStocks(); }, 10000);
 setInterval(refreshBalance, 30000);
+// 市场时段 + 盘口：每 5s 拉一次，保证午休/收盘等冻结期也能及时刷新徽标与按钮状态
+setInterval(() => { loadStatus(); if (selected) loadOrderbook(selected); }, 5000);
 // 新闻时效：每分钟清理已过期新闻并刷新列表
 setInterval(() => { if (pruneNews()) renderNews(); }, 60000);
 </script>

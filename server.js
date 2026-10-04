@@ -445,11 +445,17 @@ app.get('/api/market/stocks', (req, res) => {
     list: d.list, index: d.index, breadth: d.breadth, news: d.news,
     newsTtlHours: d.newsTtlHours,
     minBuyUsd: MIN_BUY_USD,
+    status: d.status,
     fees: {
       buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT,
       t1: true,
     },
   });
+});
+
+// 市场阶段快照（交易时段 / 集合竞价 / 午休 / 收盘，前端据此控制可交易状态）
+app.get('/api/market/status', (req, res) => {
+  res.json(market.status());
 });
 
 app.get('/api/market/stock/:code', (req, res) => {
@@ -458,57 +464,80 @@ app.get('/api/market/stock/:code', (req, res) => {
   res.json(s);
 });
 
-app.post('/api/market/buy', async (req, res) => {
-  const s = auth.resolve((req.body || {}).token);
-  if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
-  const { code, amount } = req.body || {};
-  const usdAmt = parseFloat(amount);
-  if (!(usdAmt >= MIN_BUY_USD)) return res.status(400).json({ error: `最低投入 $${MIN_BUY_USD}（无上限）` });
-  // 买入手续费（与 market.buy 内部一致），本金 + 手续费一并扣额度
-  const feeUsd = round2(usdAmt * BUY_FEE_RATE);
-  const totalUsd = round2(usdAmt + feeUsd);
-  const quota = Math.round(totalUsd * CONFIG.quotaPerUnit);
-
-  let debited = false;
+// 限价委托（买/卖统一）：买冻结额度、卖冻结持仓，连续竞价即时撮合。
+app.post('/api/market/order', async (req, res) => {
   try {
-    if (settle.ready()) {
-      if (!(await settle.debit(s.userId, quota))) {
-        return res.status(400).json({ error: '余额不足（含手续费，共需 $' + totalUsd + '）' });
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
+    const { code, side, price, qty } = req.body || {};
+    let frozenQuota = 0;
+    if (side !== 'sell') {
+      // 买入：冻结 委托价×股数×(1+手续费) 的额度上限
+      const p = round2(parseFloat(price));
+      const q = parseFloat(qty);
+      if (!(p > 0) || !(q > 0)) return res.status(400).json({ error: '委托价格/数量无效' });
+      const frozenUsd = round2(p * q * (1 + BUY_FEE_RATE));
+      frozenQuota = Math.round(frozenUsd * CONFIG.quotaPerUnit);
+      if (settle.ready() && !(await settle.debit(s.userId, frozenQuota))) {
+        return res.status(400).json({ error: '余额不足（委托买入需冻结 $' + frozenUsd.toFixed(2) + '，含手续费）' });
       }
-      debited = true;
     }
-    const r = market.buy(s.userId, code, usdAmt, s.username);
+    const r = market.placeOrder(s.userId, code, side, price, qty, s.username, frozenQuota);
     if (r.error) {
-      if (settle.ready() && debited) await settle.credit(s.userId, quota); // 回滚本金+手续费
+      if (frozenQuota > 0 && settle.ready()) { try { await settle.credit(s.userId, frozenQuota); } catch (e) { /* ignore */ } }
       return res.status(400).json({ error: r.error });
+    }
+    // 落账本次撮合产生的额度变动（卖方净回款 / 买方价差退款）
+    for (const ef of (r.effects || [])) {
+      if (!ef || !(ef.quota > 0)) continue;
+      if (settle.ready()) { try { await settle.credit(ef.userId, ef.quota); } catch (e) { /* ignore */ } }
     }
     let bal = null;
     if (settle.ready()) { try { bal = await settle.balance(s.userId); } catch (e) { bal = null; } }
-    res.json({ code: 'ok', ...r, quota: bal });
+    res.json({ code: 'ok', ...r, effects: undefined, quota: bal });
   } catch (e) {
-    // 入仓抛异常时回滚已扣额度，避免「提示失败但已扣款」
-    if (settle.ready() && debited) { try { await settle.credit(s.userId, quota); } catch (e2) { /* ignore */ } }
     res.status(500).json({ error: e.message });
   }
 });
 
-app.post('/api/market/sell', async (req, res) => {
+// 撤单：买退冻结额度、卖解冻持仓
+app.post('/api/market/order/:id/cancel', async (req, res) => {
   try {
     const s = auth.resolve((req.body || {}).token);
     if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
-    const { code, shares } = req.body || {};
-    const r = market.sell(s.userId, code, shares, s.username);
+    const r = market.cancelOrder(parseInt(req.params.id, 10), s.userId);
     if (r.error) return res.status(400).json({ error: r.error });
-    // 卖出：扣除手续费后返还额度（卖出手续费含印花税）
-    const netUsd = round2(r.proceeds - r.feeUsd);
-    const quota = Math.round(netUsd * CONFIG.quotaPerUnit);
-    if (settle.ready()) await settle.credit(s.userId, quota);
+    if (r.refundQuota > 0 && settle.ready()) { try { await settle.credit(s.userId, r.refundQuota); } catch (e) { /* ignore */ } }
     let bal = null;
     if (settle.ready()) { try { bal = await settle.balance(s.userId); } catch (e) { bal = null; } }
-    res.json({ code: 'ok', ...r, netUsd, quota: bal });
+    res.json({ code: 'ok', ...r, quota: bal });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// 五档盘口
+app.get('/api/market/orderbook/:code', (req, res) => {
+  res.json(market.orderBook(req.params.code));
+});
+
+// 多周期 K 线（1m/5m/15m/30m/60m/day/week/month）
+app.get('/api/market/kline/:code', (req, res) => {
+  const period = req.query.period || 'day';
+  const bars = market.klinePeriod(req.params.code, period);
+  res.json({ code: req.params.code, period, bars });
+});
+
+// 板块排行
+app.get('/api/market/sectors', (req, res) => {
+  res.json({ list: market.sectorRank() });
+});
+
+// 我的当日委托
+app.get('/api/market/orders', (req, res) => {
+  const s = auth.resolve(req.query.token);
+  if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
+  res.json({ list: market.myOrders(s.userId) });
 });
 
 app.get('/api/market/holdings', (req, res) => {
@@ -822,6 +851,12 @@ setInterval(() => {
     if (now - s.createdAt > 10 * 60 * 1000) {
       soloSessions.delete(id);
     }
+  }
+  // 待入账额度（逐 tick 撮合回款 / 买方退款 / EOD 撤单退款）落账
+  const credits = market.drainCredits();
+  for (const rf of credits) {
+    if (!rf || !(rf.quota > 0)) continue;
+    settle.credit(rf.userId, rf.quota).catch(() => {});
   }
 }, 60 * 1000).unref();
 
