@@ -9,9 +9,9 @@
 #stage { display: flex; justify-content: center; }
 #board {
   display: block; margin: 0 auto;
-  background: #0b0f20;
+  background: #070a14;
   border: 1px solid var(--border); border-radius: 16px;
-  box-shadow: 0 10px 34px rgba(0,0,0,.4), inset 0 0 60px rgba(108,124,255,.05);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
   touch-action: none; max-width: min(480px, 94vw); height: auto;
   -webkit-user-select: none; user-select: none;
 }
@@ -24,28 +24,27 @@
 .hud .mult { color: var(--muted); font-size: 12px; font-weight: 500; }
 .legend { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.8; }
 
-/* 底部触控挡板按钮 */
 .controls {
   display: flex; justify-content: space-between; align-items: center;
   gap: 12px; margin-top: 14px; user-select: none; -webkit-user-select: none;
 }
 .flip-btn {
-  flex: 1; height: 64px; border-radius: 14px; border: 1px solid var(--border);
+  flex: 1; height: 66px; border-radius: 14px; border: 1px solid var(--border);
   background: var(--panel-2); color: var(--muted); font-size: 15px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; letter-spacing: 1px;
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
-.flip-btn.left { background: linear-gradient(135deg, rgba(108,124,255,.25), rgba(108,124,255,.08)); }
-.flip-btn.right { background: linear-gradient(135deg, rgba(177,108,255,.25), rgba(177,108,255,.08)); }
-.flip-btn.on { border-color: var(--accent); color: #fff; }
+.flip-btn.left { background: linear-gradient(135deg, rgba(108,124,255,.28), rgba(108,124,255,.08)); }
+.flip-btn.right { background: linear-gradient(135deg, rgba(177,108,255,.28), rgba(177,108,255,.08)); }
+.flip-btn.on { border-color: var(--accent); color: #fff; box-shadow: 0 0 16px rgba(108,124,255,.5); }
 .launch-btn {
-  width: 108px; height: 64px; border-radius: 14px; border: 1px solid rgba(240,180,41,.45);
+  width: 110px; height: 66px; border-radius: 14px; border: 1px solid rgba(240,180,41,.45);
   background: linear-gradient(135deg, rgba(240,180,41,.28), rgba(240,180,41,.08));
   color: var(--gold); font-size: 15px; font-weight: 700; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
-.launch-btn.on { background: rgba(240,180,41,.4); color: #fff; }
+.launch-btn.on { background: rgba(240,180,41,.4); color: #fff; box-shadow: 0 0 16px rgba(240,180,41,.5); }
 </style>
 </head>
 <body>
@@ -59,7 +58,7 @@
   </div>
   <div id="authBar"></div>
   <div class="card">
-    <div class="meta">经典弹球机：按住 <b>发射</b> 蓄力、松开把球打进盘面，再用底部左右<b>挡板</b>把球弹上去撞得分点。3 球制，球从中间漏掉即失一球；按最终得分结倍率，最高 <b>3 倍</b>。</div>
+    <div class="meta">经典弹球机：按住 <b>发射</b> 蓄力、松开把球打进盘面，再用底部左右<b>挡板</b>把球弹上去撞得分点。3 球制，球从底部漏掉即失一球；按最终得分结倍率，最高 <b>3 倍</b>。</div>
 
     <div id="stage"><canvas id="board" width="480" height="640"></canvas></div>
     <div class="hud">
@@ -74,10 +73,9 @@
       </div>
       <button id="btnStart" class="primary">开始游戏</button>
       <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
-      <div class="tip">开始即扣门票额度。按住「发射」蓄力、松开发射；底部左右挡板把球弹回盘面撞 bumper（30 分）、靶子（50 分）、顶部通道（100 分）。倍率档：≥180 分 0.3x、≥350 分 0.5x、≥600 分 0.8x、≥1000 分 1.3x、≥1600 分 2x、≥2500 分 3x。</div>
+      <div class="tip">开始即扣门票额度。按住「发射」蓄力、松开发射；底部左右挡板把球弹回盘面撞 bumper（30 分）、靶子（50 分）、弹射柱（20 分）、顶部通道（100 分）。倍率档：≥180 分 0.3x、≥350 分 0.5x、≥600 分 0.8x、≥1000 分 1.3x、≥1600 分 2x、≥2500 分 3x。</div>
     </div>
 
-    <!-- 触控挡板 + 发射 -->
     <div class="controls" id="controls" style="display:none">
       <div class="flip-btn left" id="btnLeft">◀ 左</div>
       <div class="launch-btn" id="btnLaunch">发 射</div>
@@ -112,11 +110,9 @@ const statusEl = document.getElementById('status');
 const scoreEl = document.getElementById('scoreEl');
 const ballEl = document.getElementById('ballEl');
 
-// ---- 游戏状态 ----
 let state = null;
 let inputs = [];
 
-// ---- 输入状态（键盘 + 触控合并） ----
 let keyLeft = false, keyRight = false, keyLaunch = false;
 let touchLeft = false, touchRight = false, touchLaunch = false;
 
@@ -137,118 +133,197 @@ async function post(path, body) {
   return { status: r.status, data: await r.json() };
 }
 
-// ---- 渲染 ----
-function drawBar(x1, y1, x2, y2, w, color) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = w;
-  ctx.lineCap = 'round';
+// ---- 绘制工具 ----
+function rr(x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
-function drawCircle(cx, cy, r, fill, glow) {
-  if (glow) {
-    const g = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 1.8);
-    g.addColorStop(0, glow);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 1.8, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = fill;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+function glowCircle(cx, cy, r, color) {
+  const g = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 1.9);
+  g.addColorStop(0, color);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 1.9, 0, Math.PI * 2); ctx.fill();
+}
+
+// pop bumper：外环 + 顶帽 + 分值
+function drawBumper(x, y, r, pts) {
+  glowCircle(x, y, r, 'rgba(108,124,255,.28)');
+  const ring = ctx.createRadialGradient(x, y, r * 0.4, x, y, r);
+  ring.addColorStop(0, '#3a4db8');
+  ring.addColorStop(0.72, '#5966c8');
+  ring.addColorStop(1, '#242a4a');
+  ctx.fillStyle = ring;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(180,190,255,.55)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, r - 1, 0, Math.PI * 2); ctx.stroke();
+  // 顶帽
+  const cap = ctx.createRadialGradient(x - r * 0.18, y - r * 0.22, 1, x, y, r * 0.62);
+  cap.addColorStop(0, '#ffffff');
+  cap.addColorStop(1, '#b9c2ff');
+  ctx.fillStyle = cap;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#141830';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(pts), x, y + 1);
+}
+
+// drop target：圆形得分靶
+function drawTarget(x, y, r, pts, active) {
+  if (active) glowCircle(x, y, r, 'rgba(240,180,41,.35)');
+  ctx.fillStyle = active ? '#f0b429' : '#33394f';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = active ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.62, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = active ? '#201500' : '#7c8196';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(pts), x, y + 1);
+}
+
+function drawPost(x, y, r, pts) {
+  ctx.fillStyle = '#2e3553';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#5966c8';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, r - 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#aeb6e8';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(pts), x, y + 1);
+}
+
+// 挡板（线段 bat，从转轴到尖端）
+function drawFlipper(anchor, tip, hue, on) {
+  const ang = Math.atan2(tip.y - anchor.y, tip.x - anchor.x);
+  const len = Math.hypot(tip.x - anchor.x, tip.y - anchor.y);
+  ctx.save();
+  ctx.translate(anchor.x, anchor.y);
+  ctx.rotate(ang);
+  const g = ctx.createLinearGradient(0, -11, 0, 11);
+  g.addColorStop(0, on ? '#dbe0ff' : '#8a93d6');
+  g.addColorStop(0.5, on ? '#8b96ff' : '#5a64a8');
+  g.addColorStop(1, on ? '#6c7cff' : '#3a4270');
+  ctx.fillStyle = g;
+  rr(-5, -11, len + 10, 22, 11);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function render() {
   ctx.clearRect(0, 0, W, H);
 
-  // 盘面背景
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#141a38');
-  bg.addColorStop(0.55, '#0d1229');
-  bg.addColorStop(1, '#0a0e1e');
-  ctx.fillStyle = bg;
+  // 机台外壳
+  const cab = ctx.createLinearGradient(0, 0, 0, H);
+  cab.addColorStop(0, '#0d1226');
+  cab.addColorStop(1, '#05070f');
+  ctx.fillStyle = cab;
   ctx.fillRect(0, 0, W, H);
+
+  // 盘面
+  const pg = ctx.createLinearGradient(0, 0, 0, H);
+  pg.addColorStop(0, '#17204a');
+  pg.addColorStop(0.5, '#101733');
+  pg.addColorStop(1, '#0b0f24');
+  ctx.fillStyle = pg;
+  ctx.fillRect(14, 40, W - 28, H - 40);
 
   // 顶部圆拱
   ctx.strokeStyle = '#2c3152';
-  ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.arc(240, 60, 200, Math.PI, 0); ctx.stroke();
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.arc(240, 44, 200, Math.PI, 0); ctx.stroke();
+  ctx.strokeStyle = '#3a4270';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(240, 44, 192, Math.PI, 0); ctx.stroke();
 
-  // 侧墙轨道
-  drawBar(6, 60, 6, FLOOR_Y + 30, 8, '#2c3152');
-  drawBar(W - 6, 60, W - 6, FLOOR_Y + 30, 8, '#2c3152');
+  // 侧轨
+  ctx.strokeStyle = '#2c3152';
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(14, 60); ctx.lineTo(14, 630); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W - 14, 60); ctx.lineTo(W - 14, 630); ctx.stroke();
 
   // 顶部奖励通道
   const laneOn = state && state.laneBonusAvail;
-  ctx.fillStyle = laneOn ? 'rgba(62,207,142,.22)' : 'rgba(139,144,168,.08)';
-  ctx.fillRect(60, 26, 360, 40);
-  ctx.fillStyle = laneOn ? '#3ecf8e' : '#3a4058';
+  ctx.fillStyle = laneOn ? 'rgba(62,207,142,.24)' : 'rgba(139,144,168,.07)';
+  rr(60, 30, 360, 34, 8); ctx.fill();
+  ctx.strokeStyle = laneOn ? 'rgba(62,207,142,.6)' : 'rgba(139,144,168,.2)';
+  ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = laneOn ? '#3ecf8e' : '#4a5070';
   ctx.font = 'bold 13px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('+100', 240, 46);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('+100', 240, 48);
 
-  // bumper（圆形挡板）
-  for (const bp of C.BUMPERS) {
-    drawCircle(bp.x, bp.y, bp.r, 'rgba(108,124,255,.85)', 'rgba(108,124,255,.35)');
-    drawCircle(bp.x, bp.y, bp.r * 0.45, 'rgba(255,255,255,.35)');
-  }
+  // bumper
+  for (const bp of C.BUMPERS) drawBumper(bp.x, bp.y, bp.r, C.BUMPER_SCORE);
 
-  // 靶子（一次性）
-  if (state) {
-    state.targets.forEach((t, i) => {
-      const src = C.TARGETS[i];
-      if (t.active) drawCircle(src.x, src.y, src.r, 'rgba(240,180,41,.9)', 'rgba(240,180,41,.4)');
-      else drawCircle(src.x, src.y, src.r, 'rgba(58,64,88,.7)');
-    });
-  } else {
-    for (const t of C.TARGETS) drawCircle(t.x, t.y, t.r, 'rgba(240,180,41,.9)', 'rgba(240,180,41,.4)');
-  }
+  // 弹射柱
+  for (const sp of C.SLINGS) drawPost(sp.x, sp.y, sp.r, C.SLING_SCORE);
 
-  // 发射轨道（右侧）
-  ctx.fillStyle = '#0a0e1e';
-  ctx.fillRect(W - 34, 150, 34, 470);
+  // 靶子
+  const tg = state ? state.targets : null;
+  C.TARGETS.forEach((t, i) => {
+    const active = tg ? tg[i].active : true;
+    drawTarget(t.x, t.y, t.r, C.TARGET_SCORE, active);
+  });
+
+  // 发射轨道（右侧）+ 弹簧
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.fillRect(C.LANE_LEFT, 160, W - C.LANE_LEFT, 440);
   ctx.strokeStyle = '#2c3152';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(W - 34, 150, 34, 470);
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(C.LANE_LEFT, 160); ctx.lineTo(C.LANE_LEFT, 600); ctx.stroke();
+  // 弹簧
+  ctx.strokeStyle = '#6c7cff';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(C.LANE_LEFT + 8, 596); ctx.lineTo(W - 10, 596); ctx.stroke();
 
-  // 底部平台 + 中间漏球口
-  ctx.fillStyle = '#1a1e30';
-  ctx.fillRect(0, FLOOR_Y, W, H - FLOOR_Y);
-  ctx.fillStyle = '#080b16';
-  ctx.fillRect(240 - C.DRAIN_HALF, FLOOR_Y, C.DRAIN_HALF * 2, H - FLOOR_Y);
-  ctx.fillStyle = '#2c3152';
-  ctx.fillRect(0, FLOOR_Y - 2, 240 - C.DRAIN_HALF, 4);
-  ctx.fillRect(240 + C.DRAIN_HALF, FLOOR_Y - 2, 240 - C.DRAIN_HALF, 4);
+  // 底部漏球区（下方开口）
+  ctx.fillStyle = '#05070f';
+  ctx.fillRect(14, 620, W - 28, H - 620);
 
-  // 挡板（flipper）
+  // 挡板（动态）
   if (state) {
-    const lc = C.flipperCenter(state.flipL, C.FL_L_REST, C.FL_L_RAISED);
-    const rc = C.flipperCenter(state.flipR, C.FR_REST, C.FR_RAISED);
-    const lOn = state.flipL > 0.5;
-    const rOn = state.flipR > 0.5;
-    drawBar(C.FL_L_ANCHOR.x, C.FL_L_ANCHOR.y, lc.x, lc.y, 16, lOn ? '#8b96ff' : '#3a4270');
-    drawBar(C.FR_ANCHOR.x, C.FR_ANCHOR.y, rc.x, rc.y, 16, rOn ? '#c88bff' : '#3a4270');
+    const lt = C.flipperTip(state.flipL, C.FL_L_REST, C.FL_L_RAISED);
+    const rt = C.flipperTip(state.flipR, C.FR_REST, C.FR_RAISED);
+    drawFlipper(C.FL_L_ANCHOR, lt, 'l', state.flipL > 0.5);
+    drawFlipper(C.FR_ANCHOR, rt, 'r', state.flipR > 0.5);
   } else {
-    drawBar(C.FL_L_ANCHOR.x, C.FL_L_ANCHOR.y, C.FL_L_REST.x, C.FL_L_REST.y, 16, '#3a4270');
-    drawBar(C.FR_ANCHOR.x, C.FR_ANCHOR.y, C.FR_REST.x, C.FR_REST.y, 16, '#3a4270');
+    drawFlipper(C.FL_L_ANCHOR, C.FL_L_REST, 'l', false);
+    drawFlipper(C.FR_ANCHOR, C.FR_REST, 'r', false);
   }
 
   // 小球
   if (state) {
     const b = state.ball;
-    drawCircle(b.x, b.y, C.BALL_R, '#fff', 'rgba(255,233,168,.8)');
-    // 发射蓄力条
+    glowCircle(b.x, b.y, C.BALL_R, 'rgba(255,233,168,.75)');
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(b.x, b.y, C.BALL_R, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.arc(b.x - 3, b.y - 3, 3, 0, Math.PI * 2); ctx.fill();
+    // 蓄力：球周围光晕随力度增大 + 右侧竖条
     if (state.phase === 'launch') {
-      ctx.fillStyle = '#0a0e1e';
-      ctx.fillRect(W - 20, 250, 10, 200);
+      glowCircle(b.x, b.y, 12 + state.power * 18, 'rgba(240,180,41,.55)');
+      const barW = 8, barH = 220, barX = W - 10, barY = 210;
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
+      rr(barX - 2, barY, barW + 4, barH, 4); ctx.fill();
       ctx.fillStyle = '#f0b429';
-      ctx.fillRect(W - 20, 250 + 200 * (1 - state.power), 10, 200 * state.power);
-      ctx.strokeStyle = 'rgba(240,180,41,.5)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(W - 20, 250, 10, 200);
+      const ph = barH * state.power;
+      if (ph > 2) { rr(barX, barY + (barH - ph), barW, ph - 2, 3); ctx.fill(); }
+      ctx.fillStyle = '#f0b429';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('力', barX + barW / 2, barY - 8);
     }
   }
 
@@ -284,7 +359,7 @@ function tick() {
   inputs.push(m);
   C.step(state, m);
   if (state.over) over = true;
-  else if (inputs.length >= C.MAX_TICKS) over = true; // 达上限自动结算，避免与服务端截断不一致
+  else if (inputs.length >= C.MAX_TICKS) over = true;
 }
 
 async function settle() {
@@ -371,6 +446,9 @@ bindTouch(document.getElementById('btnLaunch'), (v) => { touchLaunch = v; });
 
 document.getElementById('btnStart').onclick = start;
 document.getElementById('btnEnd').onclick = endManually;
+
+// 初次渲染静态机台
+render();
 </script>
 </body>
 </html>
