@@ -53,16 +53,12 @@
     <div class="board-wrap"><div id="board"></div></div>
     <div class="timer" id="timer"></div>
     <div class="panel" id="panel" style="display:none">
-      <div id="inviteBox" style="display:none">
+      <div id="codeBox" style="display:none">
         <div class="row">
-          <input id="inviteBet" type="number" placeholder="押注美元（10~200）" min="10" max="200">
+          <input id="roomCode" type="text" placeholder="输入房间码（如 ABC123）" maxlength="6" autocomplete="off">
         </div>
-        <button id="btnInvite" class="primary">邀请群友对战</button>
-        <div class="tip">点击后机器人会在群里发「xxx 发起五子棋对战(1/2)」，等待群友点链接接受。</div>
-      </div>
-      <div id="acceptBox" style="display:none">
-        <button id="btnAccept" class="primary">接受对战</button>
-        <div class="tip">接受后将扣除押注额度，双方进入对局。</div>
+        <button id="btnJoin" class="primary">凭房间码进入对战</button>
+        <div class="tip">房间码由机器人在匹配成功后私聊发送，请先用已绑定的 NewAPI 账号登录。</div>
       </div>
     </div>
     <div class="actions">
@@ -87,7 +83,6 @@ const params = new URLSearchParams(location.search);
 const roomId = params.get('room');
 const player = parseInt(params.get('player'), 10);
 const token = params.get('token');
-const invite = params.get('invite');
 const gid = params.get('gid');
 document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
 
@@ -103,14 +98,16 @@ let lastMove = null;
 const GAME_TYPE = 'gomoku';
 let curRid = null, curPl = null, curTk = null;   // 当前对局连接信息（用于重连）
 let deadline = null, timeoutMs = 180000, timerInterval = null; // 思考倒计时
+let gameOver = false;   // 对局是否已结束（结束则不再自动重连）
+let fatalError = false; // 鉴权失败/房间不可用等致命错误（不自动重连）
+let reconnectTimer = null;
 
 const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
 const betBadge = document.getElementById('betBadge');
 const panelEl = document.getElementById('panel');
-const inviteBox = document.getElementById('inviteBox');
-const acceptBox = document.getElementById('acceptBox');
+const codeBox = document.getElementById('codeBox');
 const btnResign = document.getElementById('btnResign');
 
 function render() {
@@ -206,6 +203,8 @@ function connectWS(rid, pl, tk) {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'hello') {
+      gameOver = false; fatalError = false;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       betBadge.textContent = '押注 $' + msg.bet;
       metaEl.innerHTML =
         '你：<b>' + (msg.you.name || msg.you.qq) + '</b>（' + (myPlayer === 1 ? '黑方先手' : '白方') + '）' +
@@ -230,19 +229,26 @@ function connectWS(rid, pl, tk) {
         statusEl.className = 'status';
       }
     } else if (msg.type === 'end') {
+      gameOver = true;
       stopTimer();
       GCAuth.clearBattle(GAME_TYPE);
       showResult(msg.winner, msg.reason);
     } else if (msg.type === 'error') {
+      fatalError = true;
       statusEl.textContent = msg.message || '出错了';
       statusEl.className = 'status';
     }
   };
   ws.onclose = () => {
     stopTimer();
+    if (gameOver || fatalError) return; // 对局已结束或鉴权失败，不再自动重连
     document.getElementById('btnReconnect').style.display = 'inline-block';
-    statusEl.textContent = '连接已断开，可点「重新连接」恢复对局';
+    statusEl.textContent = '连接已断开，正在自动重连…';
     statusEl.className = 'status';
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      if (!gameOver && !fatalError && curRid && curTk) connectWS(curRid, curPl, curTk);
+    }, 2000);
   };
 }
 
@@ -254,68 +260,25 @@ async function postJSON(path, body) {
   return r.json();
 }
 
-// ---- 邀请流程 ----
-async function doInvite() {
+// ---- 凭房间码进入对战 ----
+async function joinByCode() {
   const token = GCAuth.getToken();
   if (!token) { alert('请先登录 NewAPI 账号'); return; }
-  const bet = parseFloat(document.getElementById('inviteBet').value);
-  if (!(bet >= 10 && bet <= 200)) { alert('押注金额需在 10~200 美元之间'); return; }
-  if (!gid) { alert('缺少群号，请从群里的游戏大厅链接进入'); return; }
-  const d = await postJSON('/api/invite', { gameType: 'gomoku', groupId: gid, token, bet });
-  if (d.code !== 'ok') { alert(d.error || '发起失败'); return; }
-  statusEl.textContent = '邀请已发出，等待机器人在群里广播…';
-  const t = setInterval(async () => {
-    const r = await fetch('/api/invite/' + d.inviteId);
-    const j = await r.json();
-    if (j.status === 'resolved' && j.roomId) {
-      clearInterval(t);
-      pollRoomPlaying(j.roomId, 1, j.player1Token);
-    } else if (j.status === 'failed') {
-      clearInterval(t);
-      statusEl.textContent = j.error || '邀请失败';
-    }
-  }, 2000);
+  const code = document.getElementById('roomCode').value.trim().toUpperCase();
+  if (!code) { alert('请输入房间码'); return; }
+  const d = await postJSON('/api/room/join-by-code', { code, token });
+  if (d.code !== 'ok') { alert(d.error || '进入失败'); return; }
+  if (d.gameType !== GAME_TYPE) {
+    // 房间码属于另一种游戏，跳转到对应游戏页并自动进入
+    GCAuth.saveBattle(d.gameType, d.roomId, d.player, d.wsToken);
+    location.href = '/' + d.gameType + '.html';
+    return;
+  }
+  GCAuth.saveBattle(GAME_TYPE, d.roomId, d.player, d.wsToken);
+  connectWS(d.roomId, d.player, d.wsToken);
 }
 
-function pollRoomPlaying(rid, pl, tk) {
-  GCAuth.saveBattle(GAME_TYPE, rid, pl, tk); // 等待阶段也持久化，便于退出重进
-  statusEl.textContent = '已建房，等待对手点链接接受…';
-  const t = setInterval(async () => {
-    const r = await fetch('/api/room/' + rid);
-    const j = await r.json();
-    if (j.state === 'playing') {
-      clearInterval(t);
-      connectWS(rid, pl, tk);
-    } else if (j.state === 'finished') {
-      clearInterval(t);
-      GCAuth.clearBattle(GAME_TYPE);
-      statusEl.textContent = '对局已结束';
-    }
-  }, 2000);
-}
-
-// ---- 接受流程 ----
-async function doAccept() {
-  const token = GCAuth.getToken();
-  if (!token) { alert('请先登录 NewAPI 账号'); return; }
-  const d = await postJSON('/api/accept', { roomId, token });
-  if (d.code !== 'ok') { alert(d.error || '接受失败'); return; }
-  statusEl.textContent = '等待机器人处理…';
-  const t = setInterval(async () => {
-    const r = await fetch('/api/accept/' + d.acceptId);
-    const j = await r.json();
-    if (j.status === 'resolved' && j.player2Token) {
-      clearInterval(t);
-      connectWS(roomId, 2, j.player2Token);
-    } else if (j.status === 'failed') {
-      clearInterval(t);
-      statusEl.textContent = j.error || '接受失败';
-    }
-  }, 2000);
-}
-
-document.getElementById('btnInvite').onclick = doInvite;
-document.getElementById('btnAccept').onclick = doAccept;
+document.getElementById('btnJoin').onclick = joinByCode;
 btnResign.onclick = () => {
   if (confirm('确定认输吗？')) ws.send(JSON.stringify({ type: 'resign' }));
 };
@@ -331,7 +294,7 @@ GCAuth.renderAuthBar(document.getElementById('authBar'));
 
 // ---- 初始化：按模式（含退出重进恢复） ----
 async function init() {
-  // 1) URL 带 token：正常对战（机器人私聊链接）
+  // 1) URL 带 token：正常对战（兼容旧链接，仍可用）
   if (roomId && token) { connectWS(roomId, player, token); return; }
 
   // 2) 重连：本地保存了对局 token 且房间仍在进行中
@@ -341,29 +304,17 @@ async function init() {
       const r = await fetch('/api/room/' + saved.roomId);
       const j = await r.json();
       if (j.state === 'playing') { connectWS(saved.roomId, saved.player, saved.token); return; }
-      if (j.state === 'waiting' && saved.player === 1) { pollRoomPlaying(saved.roomId, saved.player, saved.token); return; }
     } catch (e) { /* 网络异常按无对战处理 */ }
     GCAuth.clearBattle(GAME_TYPE);
   }
 
-  // 3) 接受对战
-  if (roomId && invite === '1') {
-    render();
-    betBadge.textContent = '接受对战';
-    panelEl.style.display = 'flex';
-    acceptBox.style.display = 'flex';
-    statusEl.textContent = '登录后点击「接受对战」';
-    statusEl.className = 'status';
-    return;
-  }
-
-  // 4) 预览 / 邀请
+  // 3) 预览 + 房间码入口
   render();
   betBadge.textContent = '演示';
   metaEl.textContent = '五子棋 · 黑方先手（连五即胜）';
   panelEl.style.display = 'flex';
-  inviteBox.style.display = 'flex';
-  statusEl.textContent = '登录后输入押注发起邀请对战';
+  codeBox.style.display = 'flex';
+  statusEl.textContent = '登录后输入机器人私聊的房间码进入对战';
   statusEl.className = 'status';
 }
 init();

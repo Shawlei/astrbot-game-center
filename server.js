@@ -55,11 +55,34 @@ function findWaiting(gameType, groupId) {
   return null;
 }
 
+// 房间码：6 位大写字母+数字，去掉易混淆的 0/O/1/I，便于用户在聊天里手打。
+const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+function genCode() {
+  let code;
+  do {
+    let s = '';
+    for (let i = 0; i < 6; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    code = s;
+  } while (findByCode(code));
+  return code;
+}
+
+// 按房间码查房间（大小写不敏感，忽略首尾空格）
+function findByCode(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return null;
+  for (const room of rooms.values()) {
+    if (room.code === c) return room;
+  }
+  return null;
+}
+
 function makeRoom(gameType, groupId, player, betUsd) {
   const id = crypto.randomBytes(6).toString('hex');
   const betQuota = Math.max(1, Math.round(betUsd * CONFIG.quotaPerUnit));
   const room = {
     id,
+    code: genCode(),
     gameType,
     groupId: String(groupId),
     bet: betUsd,
@@ -83,6 +106,7 @@ function makeRoom(gameType, groupId, player, betUsd) {
 function roomPublic(room, withToken) {
   const r = {
     id: room.id,
+    code: room.code,
     gameType: room.gameType,
     groupId: room.groupId,
     bet: room.bet,
@@ -219,6 +243,33 @@ app.post('/api/room/:id/join', async (req, res) => {
   room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
 
   res.json({ code: 'started', room: roomPublic(room, true) });
+});
+
+// 按房间码加入：网页已登录（NewAPI token），服务端按 userId 匹配玩家身份，
+// 返回该玩家对应的 roomId/player/wsToken，前端据此连 WebSocket。
+app.post('/api/room/join-by-code', (req, res) => {
+  const { code, token } = req.body || {};
+  const sess = auth.resolve(token);
+  if (!sess) return res.status(401).json({ error: '未登录或登录已过期，请先登录 NewAPI 账号' });
+
+  const room = findByCode(code);
+  if (!room) return res.status(404).json({ error: '房间码不存在或已失效，请核对后重试' });
+
+  const uid = String(sess.userId);
+  let player = 0;
+  if (String(room.players[1].userId) === uid) player = 1;
+  else if (room.players[2] && String(room.players[2].userId) === uid) player = 2;
+  if (!player) return res.status(403).json({ error: '你不是该房间的玩家，请确认已用绑定账号登录' });
+
+  res.json({
+    code: 'ok',
+    roomId: room.id,
+    player,
+    wsToken: room.tokens[player],
+    gameType: room.gameType,
+    state: room.state,
+    bet: room.bet,
+  });
 });
 
 // 查询房间状态（插件轮询用）
@@ -758,8 +809,21 @@ market.setHandlers({
 });
 
 marketWss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   try { ws.send(JSON.stringify({ type: 'quote', ...market.quote() })); } catch (e) { /* ignore */ }
 });
+
+// WebSocket 心跳：NAT / 反向代理常因空闲超时静默断开连接，导致对战「下几步就连不上」。
+// 每 30s ping 一次，客户端浏览器自动回 pong；未回则视为死连接，主动 terminate。
+function heartbeat(wsserver) {
+  wsserver.clients.forEach((ws) => {
+    if (ws.isAlive === false) { ws.terminate(); return; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) { /* ignore */ }
+  });
+}
+setInterval(() => { heartbeat(wss); heartbeat(marketWss); }, 30000).unref();
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
@@ -783,6 +847,8 @@ wss.on('connection', (ws, req) => {
 
   ws.roomId = room.id;
   ws.player = player;
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
 
   ws.send(JSON.stringify({
     type: 'hello',

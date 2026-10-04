@@ -30,6 +30,15 @@
   <div class="games" id="marketGames"></div>
 
   <div class="section-title">⚔️ 联机对战</div>
+  <div class="card" style="margin-bottom:6px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="roomCode" type="text" placeholder="输入房间码（如 ABC123）" maxlength="6" autocomplete="off" style="flex:1;min-width:160px;padding:10px 12px;border:1px solid var(--line,#333);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111)">
+      <button id="btnJoin" class="primary">凭房间码进入对战</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.7">
+      联机对战房间码由机器人在群里匹配成功后私聊发送：在群里发 <b style="color:var(--text)">%象棋对战</b> / <b style="color:var(--text)">%五子棋对战</b> 匹配。
+    </div>
+  </div>
   <div class="games" id="pvpGames"></div>
 
   <div class="section-title">🏆 排行榜</div>
@@ -38,7 +47,7 @@
     <div id="lbList"></div>
   </div>
 
-  <div class="hint" id="hint">本页为大厅入口；实际对战请从群里 bot 发送的带房间链接进入。</div>
+  <div class="hint" id="hint">本页为大厅入口；联机对战请在群里发 %象棋对战 / %五子棋对战 匹配，凭机器人私聊的房间码进入。</div>
 </div>
 
 <script src="/js/auth.js"></script>
@@ -73,6 +82,24 @@ function renderGames(el, games) {
 renderGames(document.getElementById('soloGames'), SOLO_GAMES);
 renderGames(document.getElementById('marketGames'), MARKET_GAMES);
 renderGames(document.getElementById('pvpGames'), PVP_GAMES);
+
+// ---- 凭房间码进入对战 ----
+document.getElementById('btnJoin').onclick = async () => {
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const code = document.getElementById('roomCode').value.trim().toUpperCase();
+  if (!code) { alert('请输入房间码'); return; }
+  try {
+    const r = await fetch('/api/room/join-by-code', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, token }),
+    });
+    const j = await r.json();
+    if (j.code !== 'ok') { alert(j.error || '进入失败'); return; }
+    GCAuth.saveBattle(j.gameType, j.roomId, j.player, j.wsToken);
+    location.href = '/' + j.gameType + '.html';
+  } catch (e) { alert('网络错误，请稍后重试'); }
+};
 
 // ---- 登录条 ----
 GCAuth.renderAuthBar(document.getElementById('authBar'));
