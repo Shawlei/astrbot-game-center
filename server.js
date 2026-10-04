@@ -750,6 +750,9 @@ app.get('/api/accept/:id', (req, res) => {
   res.json({ status: p.status, roomId: p.roomId, player2Token: p.player2Token, error: p.error });
 });
 
+// favicon：返回 204，避免浏览器每次加载页面都刷一条 404
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- WebSocket ----
