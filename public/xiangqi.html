@@ -6,65 +6,115 @@
 <title>中国象棋对战</title>
 <link rel="stylesheet" href="/css/style.css">
 <style>
+/* ============ 棋盘 ============ */
+.board-wrap { display: flex; justify-content: center; padding: 4px 0; }
 #board {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  width: min(520px, 92vw);
+  width: min(560px, 92vw);
   aspect-ratio: 9 / 11;
-  background: #d9b98a;
-  border: 2px solid #8a5a2b;
-  border-radius: 6px;
-  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, rgba(122,74,31,.045) 0 2px, transparent 2px 7px),
+    radial-gradient(130% 90% at 50% 0%, #f2dcaa 0%, #e5c184 55%, #cf9c58 100%);
+  border: 3px solid #7a4a1f;
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0,0,0,.45), inset 0 0 0 2px rgba(122,74,31,.25);
   user-select: none;
+  touch-action: manipulation;
 }
-#boardDecor {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-}
-.cell {
-  position: relative;
-  border-right: 1px solid rgba(138,90,43,.35);
-  border-bottom: 1px solid rgba(138,90,43,.35);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
-.cell:nth-child(9n) { border-right: none; }
-.river {
-  grid-column: 1 / -1;
-  display: flex; align-items: center; justify-content: center;
-  gap: 30px; font-size: 15px; font-weight: 700; color: #8a5a2b;
-  letter-spacing: 2px; border-bottom: 1px solid rgba(138,90,43,.35);
-  background: rgba(255,255,255,.15);
-}
+#boardSvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#marksLayer, #piecesLayer { position: absolute; inset: 0; }
+
+/* ============ 棋子 ============ */
 .piece {
-  width: 78%; height: 78%;
+  position: absolute;
+  width: 9.6%; aspect-ratio: 1;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: clamp(13px, 3.4vw, 19px); font-weight: 700;
-  border: 2px solid #5a3a18;
-  background: radial-gradient(circle at 35% 30%, #fff6e6, #f3dfae);
-  color: #a32822;
-  box-shadow: 0 1px 3px rgba(0,0,0,.35);
-  pointer-events: none;
+  pointer-events: none; z-index: 2;
+  background: radial-gradient(circle at 35% 28%, #fffdf2 0%, #f8e9c7 55%, #e7cf9c 100%);
+  box-shadow:
+    0 2px 5px rgba(0,0,0,.42),
+    inset 0 -2px 3px rgba(0,0,0,.16),
+    inset 0 2px 3px rgba(255,255,255,.6);
+  transition: left .18s ease, top .18s ease, opacity .16s ease, transform .16s ease;
 }
-.piece.black { color: #23272f; }
-.cell.selected { background: rgba(108,124,255,.35); }
-.cell.target { background: rgba(62,207,142,.45); }
-.cell.target::after {
-  content: ''; position: absolute; width: 26%; height: 26%;
-  border-radius: 50%; background: rgba(62,207,142,.8);
+.piece::before {
+  content: ''; position: absolute; inset: 6.5%;
+  border-radius: 50%;
+  border: 1.6px solid rgba(0,0,0,.30);
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.07);
 }
-.cell.last-from { background: rgba(255, 205, 0, .35); }
-.cell.last-to { background: rgba(255, 138, 26, .40); }
-.cell.last-to::after {
-  content: ''; position: absolute; width: 30%; height: 30%;
-  border-radius: 50%; background: rgba(224, 70, 60, .8);
-  box-shadow: 0 0 0 2px rgba(255,255,255,.5);
+.piece .pchar {
+  position: relative;
+  font-weight: 800;
+  font-family: "STKaiti", "KaiTi", "楷体", "FZKai-Z03", "Noto Serif SC", "SimSun", serif;
+  font-size: clamp(14px, 3.3vw, 24px);
+  line-height: 1;
 }
-.timer { text-align: center; font-size: 13px; color: var(--gold); margin-top: 8px; font-variant-numeric: tabular-nums; min-height: 20px; }
-.timer.urgent { color: var(--red); font-weight: 600; }
+.piece.red .pchar { color: #b5281f; }
+.piece.black .pchar { color: #22272f; }
+#piecesLayer:not(.anim) .piece { transition: none; }
+
+/* ============ 标记层 ============ */
+.mark { position: absolute; transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.mark.selected {
+  width: 9.6%; aspect-ratio: 1; border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(108,124,255,.95), 0 0 14px rgba(108,124,255,.65);
+}
+.mark.legal-move {
+  width: 3.6%; aspect-ratio: 1; border-radius: 50%;
+  background: rgba(62,207,142,.9); box-shadow: 0 0 8px rgba(62,207,142,.55);
+}
+.mark.legal-capture {
+  width: 9.6%; aspect-ratio: 1; border-radius: 50%;
+  border: 3px solid rgba(224,86,92,.95); box-shadow: 0 0 12px rgba(224,86,92,.55);
+}
+.mark.last-from { width: 9.6%; aspect-ratio: 1; border-radius: 50%; background: rgba(240,180,41,.28); }
+.mark.last-to { width: 9.6%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,138,26,.40); box-shadow: 0 0 0 2px rgba(224,86,92,.55); }
+.mark.check { width: 9.6%; aspect-ratio: 1; border-radius: 50%; border: 3px solid #e0565c; animation: checkPulse .85s infinite; }
+@keyframes checkPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(224,86,92,.4); }
+  50% { box-shadow: 0 0 18px rgba(224,86,92,.95); }
+}
+
+/* ============ 对战双方信息 + 时钟 + 吃子 ============ */
+.game { display: flex; flex-direction: column; gap: 10px; }
+.side {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 14px;
+}
+.side.turn { border-color: rgba(62,207,142,.65); }
+.side.me { border-color: rgba(108,124,255,.5); }
+.pinfo { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  background: radial-gradient(circle at 35% 30%, #343a55, #1a1e30);
+  border: 1px solid var(--border);
+}
+.side.me .avatar { background: radial-gradient(circle at 35% 30%, #b5281f, #6e1410); }
+.pname { font-weight: 700; font-size: 15px; color: var(--text); }
+.ptag { font-size: 12px; color: var(--muted); }
+.captured { display: flex; gap: 2px; flex-wrap: wrap; flex: 1; min-width: 0; justify-content: flex-start; }
+.captured .m {
+  width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  background: radial-gradient(circle at 35% 30%, #fffdf2, #f0e0b8 70%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.35);
+  font-family: "STKaiti", "KaiTi", "楷体", serif;
+}
+.captured .m.r { color: #b5281f; }
+.captured .m.b { color: #22272f; }
+.clock {
+  font-variant-numeric: tabular-nums; font-weight: 800; font-size: 20px;
+  color: var(--muted); padding: 4px 12px; border-radius: 10px;
+  background: rgba(0,0,0,.22); border: 1px solid var(--border); flex-shrink: 0;
+}
+.clock.active { color: var(--text); border-color: var(--accent); }
+.clock.urgent { color: var(--red); border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -77,10 +127,50 @@
     <span class="badge" id="betBadge"></span>
   </div>
   <div id="authBar"></div>
+
   <div class="card">
+    <div class="game">
+      <div class="side" id="oppSide" style="display:none">
+        <div class="pinfo">
+          <div class="avatar" id="oppAvatar">♟</div>
+          <div>
+            <div class="pname" id="oppName">对手</div>
+            <div class="ptag" id="oppTag"></div>
+          </div>
+        </div>
+        <div class="captured" id="capturedByMeEl" title="你已吃掉的对方棋子"></div>
+        <div class="clock" id="oppClock">--:--</div>
+      </div>
+
+      <div class="board-wrap">
+        <div id="board">
+          <svg id="boardSvg" viewBox="-0.5 -0.5 9 11" preserveAspectRatio="none"></svg>
+          <div id="marksLayer"></div>
+          <div id="piecesLayer"></div>
+        </div>
+      </div>
+
+      <div class="side me" id="meSide" style="display:none">
+        <div class="pinfo">
+          <div class="avatar" id="meAvatar">♟</div>
+          <div>
+            <div class="pname" id="meName">我</div>
+            <div class="ptag" id="meTag"></div>
+          </div>
+        </div>
+        <div class="captured" id="capturedByOppEl" title="对方吃掉的你的棋子"></div>
+        <div class="clock" id="meClock">--:--</div>
+      </div>
+    </div>
+
+    <div class="status" id="status">加载中…</div>
     <div class="meta" id="meta"></div>
-    <div class="board-wrap"><div id="board"></div></div>
-    <div class="timer" id="timer"></div>
+
+    <div class="actions">
+      <button id="btnResign" class="danger" style="display:none">认输</button>
+      <button id="btnReconnect" class="primary" style="display:none">重新连接</button>
+    </div>
+
     <div class="panel" id="panel" style="display:none">
       <div id="codeBox" style="display:none">
         <div class="row">
@@ -90,11 +180,6 @@
         <div class="tip">房间码由机器人在匹配成功后私聊发送，请先用已绑定的 NewAPI 账号登录。</div>
       </div>
     </div>
-    <div class="actions">
-      <button id="btnResign" class="danger" style="display:none">认输</button>
-      <button id="btnReconnect" class="primary" style="display:none">重新连接</button>
-    </div>
-    <div class="status" id="status">加载中…</div>
   </div>
 </div>
 
@@ -121,127 +206,243 @@ const PIECES = {
   r: ['车', '车'], c: ['炮', '炮'], p: ['兵', '卒'],
 };
 
+// ---- 状态 ----
 let xq = null;
 let ws = null;
 let myTurn = false;
 let myPlayer = player;
 let myColor = player === 1 ? 'r' : 'b';
+let oppColor = myColor === 'r' ? 'b' : 'r';
 let selectedFrom = null;
-let legalTo = new Set();
-let lastMove = null;   // 上一步落子 {from:{row,col}, to:{row,col}}，用于高亮对方/自己刚走的一步
+let legalMoves = [];       // 当前选中棋子的合法走法（verbose 数组）
+let lastMove = null;       // {from:{row,col}, to:{row,col}}
+let checkSquare = null;    // 被将军的将/帅位置
+let pieces = [];           // {id,color,type,row,col,alive}
+let pieceEls = {};
+let capturedByMe = [];     // 我吃掉的对方子 type[]
+let capturedByOpp = [];    // 对方吃掉我的子 type[]
 
 const GAME_TYPE = 'xiangqi';
-let curRid = null, curPl = null, curTk = null;   // 当前对局连接信息（用于重连）
-let deadline = null, timeoutMs = 180000, timerInterval = null; // 思考倒计时
-let gameOver = false;   // 对局是否已结束（结束则不再自动重连）
-let fatalError = false; // 鉴权失败/房间不可用等致命错误（不自动重连）
-let reconnectTimer = null;
+let curRid = null, curPl = null, curTk = null;
+let deadline = null, timeoutMs = 180000, timerInterval = null;
+let gameOver = false, fatalError = false, reconnectTimer = null;
 
 const boardEl = document.getElementById('board');
+const boardSvgEl = document.getElementById('boardSvg');
+const marksLayer = document.getElementById('marksLayer');
+const piecesLayer = document.getElementById('piecesLayer');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
 const betBadge = document.getElementById('betBadge');
 const panelEl = document.getElementById('panel');
 const codeBox = document.getElementById('codeBox');
 const btnResign = document.getElementById('btnResign');
+const oppSideEl = document.getElementById('oppSide');
+const meSideEl = document.getElementById('meSide');
+const oppClockEl = document.getElementById('oppClock');
+const meClockEl = document.getElementById('meClock');
+const capturedByMeEl = document.getElementById('capturedByMeEl');
+const capturedByOppEl = document.getElementById('capturedByOppEl');
 
-function algebraicToRC(sq) {
-  return { row: 9 - (sq.charCodeAt(1) - 48), col: sq.charCodeAt(0) - 97 };
+// ---- 坐标换算 ----
+function algebraicToRC(sq) { return { row: 9 - (sq.charCodeAt(1) - 48), col: sq.charCodeAt(0) - 97 }; }
+function rcToAlgebraic(row, col) { return 'abcdefghi'[col] + (9 - row); }
+function yOf(row) { return row < 5 ? row : row + 1; }
+function posX(col) { return ((col + 0.5) / 9 * 100) + '%'; }
+function posY(row) { return ((yOf(row) + 0.5) / 11 * 100) + '%'; }
+
+// ---- 棋盘 SVG ----
+function buildBoardSvg() {
+  const line = '#7a4a1f';
+  const w = 0.055;
+  let s = '';
+  const ln = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${line}" stroke-width="${w}"/>`;
+  const cross = (cx, cy) => {
+    const d = 0.17;
+    return `<path d="M ${(cx - d).toFixed(3)} ${cy} H ${(cx + d).toFixed(3)} M ${cx} ${(cy - d).toFixed(3)} V ${(cy + d).toFixed(3)}" stroke="${line}" stroke-width="${w}" fill="none"/>`;
+  };
+  // 横线 10 条
+  for (const y of [0, 1, 2, 3, 4, 6, 7, 8, 9, 10]) s += ln(0, y, 8, y);
+  // 竖线：边线贯穿，其余断开河界
+  for (let x = 0; x <= 8; x++) {
+    if (x === 0 || x === 8) s += ln(x, 0, x, 10);
+    else { s += ln(x, 0, x, 4) + ln(x, 6, x, 10); }
+  }
+  // 九宫斜线
+  s += ln(3, 0, 5, 2) + ln(5, 0, 3, 2) + ln(3, 8, 5, 10) + ln(5, 8, 3, 10);
+  // 炮位十字
+  for (const c of [1, 7]) s += cross(c, 2) + cross(c, 8);
+  // 兵/卒位十字
+  for (const c of [0, 2, 4, 6, 8]) s += cross(c, 3) + cross(c, 7);
+  // 河界文字
+  s += `<text x="2" y="5.28" text-anchor="middle" font-size="0.85" fill="#7a4a1f" font-family="STKaiti,KaiTi,楷体,serif" font-weight="700">楚 河</text>`;
+  s += `<text x="6" y="5.28" text-anchor="middle" font-size="0.85" fill="#7a4a1f" font-family="STKaiti,KaiTi,楷体,serif" font-weight="700">漢 界</text>`;
+  return s;
 }
-function rcToAlgebraic(row, col) {
-  return 'abcdefghi'[col] + (9 - row);
+boardSvgEl.innerHTML = buildBoardSvg();
+
+// ---- 棋子初始化（按初始棋盘分配稳定 id，供走子动画复用 DOM）----
+function buildPieces() {
+  const b = xq.board();
+  const count = {};
+  pieces = [];
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 9; c++) {
+      const p = b[r][c];
+      if (!p) continue;
+      const key = p.color + '-' + p.type;
+      const n = count[key] || 0;
+      count[key] = n + 1;
+      pieces.push({ id: key + '-' + n, color: p.color, type: p.type, row: r, col: c, alive: true });
+    }
+  }
+  piecesLayer.innerHTML = '';
+  pieceEls = {};
+  for (const p of pieces) {
+    const el = document.createElement('div');
+    el.className = 'piece ' + (p.color === 'r' ? 'red' : 'black');
+    el.innerHTML = '<span class="pchar">' + PIECES[p.type][p.color === 'r' ? 0 : 1] + '</span>';
+    piecesLayer.appendChild(el);
+    pieceEls[p.id] = el;
+  }
+  // 首帧禁用过渡，避免初始定位从左上角滑入
+  piecesLayer.classList.remove('anim');
+  requestAnimationFrame(() => requestAnimationFrame(() => piecesLayer.classList.add('anim')));
 }
 
-// 棋盘装饰层：九宫斜线 + 兵/卒/炮位十字标记（viewBox 0 0 9 11，与棋盘 grid 对齐）
-const boardDecorSVG = (() => {
-  const marks = [];
-  const cross = (cx, cy) =>
-    `<path d="M ${(cx - 0.18).toFixed(3)} ${cy} H ${(cx + 0.18).toFixed(3)} M ${cx} ${(cy - 0.18).toFixed(3)} V ${(cy + 0.18).toFixed(3)}" stroke="#8a5a2b" stroke-width="0.05" fill="none"/>`;
-  // 兵/卒位：file 0,2,4,6,8；黑卒 row3（y 中心 3.5）、红兵 row6（y 中心 7.5）
-  for (const c of [0, 2, 4, 6, 8]) { marks.push(cross(c + 0.5, 3.5), cross(c + 0.5, 7.5)); }
-  // 炮位：file 1,7；黑炮 row2（y 中心 2.5）、红炮 row7（y 中心 8.5）
-  for (const c of [1, 7]) { marks.push(cross(c + 0.5, 2.5), cross(c + 0.5, 8.5)); }
-  return '<svg id="boardDecor" viewBox="0 0 9 11" preserveAspectRatio="none">' +
-    '<line x1="3" y1="0" x2="6" y2="3" stroke="#8a5a2b" stroke-width="0.06"/>' +
-    '<line x1="6" y1="0" x2="3" y2="3" stroke="#8a5a2b" stroke-width="0.06"/>' +
-    '<line x1="3" y1="8" x2="6" y2="11" stroke="#8a5a2b" stroke-width="0.06"/>' +
-    '<line x1="6" y1="8" x2="3" y2="11" stroke="#8a5a2b" stroke-width="0.06"/>' +
-    marks.join('') + '</svg>';
-})();
+// 应用一步走子到 pieces（不碰 xq，调用方负责 xq.move）
+function applyPieceMove(fromRC, toRC) {
+  const mover = pieces.find((p) => p.alive && p.row === fromRC.row && p.col === fromRC.col);
+  const captured = pieces.find((p) => p.alive && p.row === toRC.row && p.col === toRC.col && p !== mover);
+  if (captured) {
+    captured.alive = false;
+    if (captured.color === myColor) capturedByOpp.push(captured.type);
+    else capturedByMe.push(captured.type);
+  }
+  if (mover) { mover.row = toRC.row; mover.col = toRC.col; }
+  lastMove = { from: fromRC, to: toRC };
+}
 
 function render() {
-  const b = xq.board();
-  boardEl.innerHTML = boardDecorSVG;
-  for (let gr = 0; gr < 11; gr++) {
-    if (gr === 5) {
-      const river = document.createElement('div');
-      river.className = 'river';
-      river.textContent = '楚 河　·　汉 界';
-      boardEl.appendChild(river);
+  // 棋子位置
+  for (const p of pieces) {
+    const el = pieceEls[p.id];
+    if (!p.alive) {
+      el.style.opacity = '0';
+      el.style.transform = 'translate(-50%,-50%) scale(.5)';
       continue;
     }
-    const row = gr < 5 ? gr : gr - 1;
-    for (let col = 0; col < 9; col++) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      const p = b[row][col];
-      if (p) {
-        const piece = document.createElement('div');
-        piece.className = 'piece ' + (p.color === 'r' ? 'red' : 'black');
-        piece.textContent = PIECES[p.type][p.color === 'r' ? 0 : 1];
-        cell.appendChild(piece);
-      }
-      if (selectedFrom && selectedFrom.row === row && selectedFrom.col === col) {
-        cell.classList.add('selected');
-      }
-      if (legalTo.has(col + ',' + row)) {
-        cell.classList.add('target');
-      }
-      if (lastMove) {
-        if (lastMove.from.row === row && lastMove.from.col === col) cell.classList.add('last-from');
-        if (lastMove.to.row === row && lastMove.to.col === col) cell.classList.add('last-to');
-      }
-      cell.addEventListener('click', () => onClickCell(row, col));
-      boardEl.appendChild(cell);
-    }
+    el.style.opacity = '1';
+    el.style.left = posX(p.col);
+    el.style.top = posY(p.row);
+    el.style.transform = 'translate(-50%,-50%)';
+  }
+  renderMarks();
+  renderCaptured();
+}
+
+function renderMarks() {
+  marksLayer.innerHTML = '';
+  const add = (row, col, cls) => {
+    const d = document.createElement('div');
+    d.className = 'mark ' + cls;
+    d.style.left = posX(col);
+    d.style.top = posY(row);
+    marksLayer.appendChild(d);
+  };
+  if (lastMove) {
+    add(lastMove.from.row, lastMove.from.col, 'last-from');
+    add(lastMove.to.row, lastMove.to.col, 'last-to');
+  }
+  if (selectedFrom) add(selectedFrom.row, selectedFrom.col, 'selected');
+  const b = xq.board();
+  for (const m of legalMoves) {
+    const rc = algebraicToRC(m.to);
+    add(rc.row, rc.col, b[rc.row][rc.col] ? 'legal-capture' : 'legal-move');
+  }
+  if (checkSquare) add(checkSquare.row, checkSquare.col, 'check');
+}
+
+function renderCaptured() {
+  const list = (arr, color) => arr.map((t) => '<span class="m ' + color + '">' + PIECES[t][color === 'r' ? 0 : 1] + '</span>').join('');
+  capturedByMeEl.innerHTML = list(capturedByMe, oppColor);
+  capturedByOppEl.innerHTML = list(capturedByOpp, myColor);
+}
+
+function setCheckFromState(state) {
+  if (state && state.inCheck) {
+    const tc = state.turn === 1 ? 'r' : 'b';
+    const k = pieces.find((p) => p.alive && p.type === 'k' && p.color === tc);
+    checkSquare = k ? { row: k.row, col: k.col } : null;
+  } else {
+    checkSquare = null;
   }
 }
 
+// ---- 交互 ----
 function onClickCell(row, col) {
-  if (!xq || !ws) return;
+  if (!xq || !ws || gameOver) return;
+  if (!myTurn) return;
   const b = xq.board();
   const p = b[row][col];
   const isMyPiece = p && p.color === myColor;
 
   if (selectedFrom) {
-    if (legalTo.has(col + ',' + row)) {
+    const hit = legalMoves.some((m) => { const rc = algebraicToRC(m.to); return rc.row === row && rc.col === col; });
+    if (hit) {
       const from = rcToAlgebraic(selectedFrom.row, selectedFrom.col);
       const to = rcToAlgebraic(row, col);
       const res = xq.move({ from, to });
       if (res) {
-        lastMove = { from: { row: selectedFrom.row, col: selectedFrom.col }, to: { row, col } };
-        ws.send(JSON.stringify({ type: 'move', move: { from, to } }));
-        selectedFrom = null; legalTo = new Set();
+        applyPieceMove(selectedFrom, { row, col });
+        selectedFrom = null; legalMoves = [];
+        if (xq.in_check()) {
+          const k = pieces.find((pp) => pp.alive && pp.type === 'k' && pp.color === oppColor);
+          checkSquare = k ? { row: k.row, col: k.col } : null;
+        } else checkSquare = null;
         render();
+        ws.send(JSON.stringify({ type: 'move', move: { from, to } }));
         setTurn(false);
         return;
       }
     }
-    selectedFrom = null; legalTo = new Set();
+    selectedFrom = null; legalMoves = [];
+    render();
+    return;
   }
 
-  if (isMyPiece && myTurn) {
+  if (isMyPiece) {
     selectedFrom = { row, col };
-    const moves = xq.moves({ verbose: true });
-    legalTo = new Set();
-    for (const m of moves) {
-      if (m.from === rcToAlgebraic(row, col)) {
-        const t = algebraicToRC(m.to);
-        legalTo.add(t.col + ',' + t.row);
-      }
-    }
+    legalMoves = xq.moves({ verbose: true }).filter((m) => m.from === rcToAlgebraic(row, col));
+    render();
   }
-  render();
+}
+
+// ---- 双方时钟 ----
+function renderClock(el, ms, active) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(s / 60), ss = s % 60;
+  el.textContent = (m < 10 ? '0' : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+  el.classList.toggle('active', active);
+  el.classList.toggle('urgent', active && ms <= 30000);
+}
+function tickClock() {
+  if (deadline == null) { oppClockEl.textContent = '--:--'; meClockEl.textContent = '--:--'; return; }
+  const remain = Math.max(0, deadline - Date.now());
+  renderClock(meClockEl, myTurn ? remain : timeoutMs, myTurn);
+  renderClock(oppClockEl, myTurn ? timeoutMs : remain, !myTurn);
+}
+function startTimer(dl, tmo) {
+  deadline = dl; timeoutMs = tmo || 180000;
+  if (timerInterval) clearInterval(timerInterval);
+  tickClock();
+  timerInterval = setInterval(tickClock, 1000);
+}
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  deadline = null;
+  oppClockEl.textContent = '--:--'; meClockEl.textContent = '--:--';
+  oppClockEl.classList.remove('active', 'urgent'); meClockEl.classList.remove('active', 'urgent');
 }
 
 function setTurn(my) {
@@ -253,56 +454,16 @@ function setTurn(my) {
     statusEl.textContent = '等待对方走棋…';
     statusEl.className = 'status';
   }
-  updateTimer();
+  oppSideEl.classList.toggle('turn', !my);
+  meSideEl.classList.toggle('turn', my);
+  tickClock();
 }
 
-// ---- 思考倒计时 ----
-function updateTimer() {
-  const el = document.getElementById('timer');
-  if (deadline == null) { el.textContent = ''; return; }
-  const remain = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-  const who = myTurn ? '你' : '对方';
-  if (remain <= 0) {
-    el.textContent = '⏱ ' + who + '思考超时，人机代走中…';
-    el.className = 'timer urgent';
-  } else {
-    el.textContent = '⏱ ' + who + '思考剩余 ' + remain + ' 秒';
-    el.className = 'timer' + (remain <= 30 ? ' urgent' : '');
-  }
-}
-function startTimer(dl, tmo) {
-  deadline = dl; timeoutMs = tmo || 180000;
-  if (timerInterval) clearInterval(timerInterval);
-  updateTimer();
-  timerInterval = setInterval(updateTimer, 1000);
-}
-function stopTimer() {
-  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-  deadline = null;
-  const el = document.getElementById('timer');
-  if (el) el.textContent = '';
-}
-
-function showResult(winner, reason) {
-  const t = document.getElementById('resultTitle');
-  const d = document.getElementById('resultDetail');
-  if (winner === 0) {
-    t.textContent = '平局';
-    t.className = 'result draw';
-  } else if (winner === myPlayer) {
-    t.textContent = '🎉 你赢了';
-    t.className = 'result win';
-  } else {
-    t.textContent = '你输了';
-    t.className = 'result lose';
-  }
-  d.innerHTML = '对局结束：' + reason + '<br>额度已自动结算，结果将同步回群里';
-  document.getElementById('overlay').classList.add('show');
-}
-
+// ---- WebSocket ----
 function connectWS(rid, pl, tk) {
   myPlayer = pl;
   myColor = pl === 1 ? 'r' : 'b';
+  oppColor = myColor === 'r' ? 'b' : 'r';
   curRid = rid; curPl = pl; curTk = tk;
   ws = new WebSocket(
     (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
@@ -315,12 +476,20 @@ function connectWS(rid, pl, tk) {
       gameOver = false; fatalError = false;
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       betBadge.textContent = '押注 $' + msg.bet;
-      metaEl.innerHTML =
-        '你：<b>' + (msg.you.name || msg.you.qq) + '</b>（' + (myPlayer === 1 ? '红方先手' : '黑方') + '）' +
-        '　vs　对手：<b>' + (msg.opponent.name || msg.opponent.qq) + '</b>';
       xq = msg.state && msg.state.fen ? new Xiangqi(msg.state.fen) : new Xiangqi();
-      lastMove = null; // 重连后无历史步信息，清空上一步高亮
+      lastMove = null; selectedFrom = null; legalMoves = [];
+      capturedByMe = []; capturedByOpp = [];
+      buildPieces();
+      setCheckFromState(msg.state);
       render();
+      oppSideEl.style.display = 'flex'; meSideEl.style.display = 'flex';
+      document.getElementById('oppName').textContent = msg.opponent.name || msg.opponent.qq;
+      document.getElementById('meName').textContent = msg.you.name || msg.you.qq;
+      document.getElementById('oppTag').textContent = myPlayer === 1 ? '对手 · 黑方' : '对手 · 红方';
+      document.getElementById('meTag').textContent = myPlayer === 1 ? '你 · 红方先手' : '你 · 黑方';
+      document.getElementById('meAvatar').textContent = myPlayer === 1 ? '帅' : '将';
+      document.getElementById('oppAvatar').textContent = myPlayer === 1 ? '将' : '帅';
+      metaEl.textContent = '';
       setTurn((msg.state.turn || 1) === myPlayer);
       startTimer(msg.deadline, msg.timeoutMs);
       GCAuth.saveBattle(GAME_TYPE, curRid, curPl, curTk);
@@ -328,17 +497,29 @@ function connectWS(rid, pl, tk) {
       btnResign.style.display = 'inline-block';
       document.getElementById('btnReconnect').style.display = 'none';
     } else if (msg.type === 'move') {
-      xq.move({ from: msg.move.from, to: msg.move.to });
-      lastMove = { from: algebraicToRC(msg.move.from), to: algebraicToRC(msg.move.to) };
-      selectedFrom = null; legalTo = new Set();
+      const fromRC = algebraicToRC(msg.move.from);
+      const toRC = algebraicToRC(msg.move.to);
+      // 自己的走子回显（本地已应用）则跳过重复 applyMove
+      const isEcho = lastMove && lastMove.from.row === fromRC.row && lastMove.from.col === fromRC.col &&
+                     lastMove.to.row === toRC.row && lastMove.to.col === toRC.col;
+      if (!isEcho) {
+        xq.move({ from: msg.move.from, to: msg.move.to });
+        applyPieceMove(fromRC, toRC);
+      }
+      setCheckFromState(msg.state);
+      selectedFrom = null; legalMoves = [];
       render();
       setTurn(msg.turn === myPlayer);
-      startTimer(msg.deadline, msg.timeoutMs);
       if (msg.auto) {
         const who = msg.autoPlayer === myPlayer ? '你' : '对方';
         statusEl.textContent = '⚠ ' + who + '思考超时，人机代走一步';
         statusEl.className = 'status';
+      } else if (msg.state && msg.state.inCheck) {
+        const who = msg.turn === myPlayer ? '你被将军' : '你将军了对方';
+        statusEl.textContent = '⚡ ' + who + '！';
+        statusEl.className = 'status turn';
       }
+      startTimer(msg.deadline, msg.timeoutMs);
     } else if (msg.type === 'end') {
       gameOver = true;
       stopTimer();
@@ -352,7 +533,7 @@ function connectWS(rid, pl, tk) {
   };
   ws.onclose = () => {
     stopTimer();
-    if (gameOver || fatalError) return; // 对局已结束或鉴权失败，不再自动重连
+    if (gameOver || fatalError) return;
     document.getElementById('btnReconnect').style.display = 'inline-block';
     statusEl.textContent = '连接已断开，正在自动重连…';
     statusEl.className = 'status';
@@ -363,24 +544,29 @@ function connectWS(rid, pl, tk) {
   };
 }
 
+function showResult(winner, reason) {
+  const t = document.getElementById('resultTitle');
+  const d = document.getElementById('resultDetail');
+  if (winner === 0) { t.textContent = '和棋'; t.className = 'result draw'; }
+  else if (winner === myPlayer) { t.textContent = '🎉 你赢了'; t.className = 'result win'; }
+  else { t.textContent = '你输了'; t.className = 'result lose'; }
+  d.textContent = '对局结束：' + reason + '，额度已自动结算，结果将同步回群里';
+  document.getElementById('overlay').classList.add('show');
+}
+
 async function postJSON(path, body) {
-  const r = await fetch(path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 }
 
-// ---- 凭房间码进入对战 ----
 async function joinByCode() {
-  const token = GCAuth.getToken();
-  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const tk = GCAuth.getToken();
+  if (!tk) { alert('请先登录 NewAPI 账号'); return; }
   const code = document.getElementById('roomCode').value.trim().toUpperCase();
   if (!code) { alert('请输入房间码'); return; }
-  const d = await postJSON('/api/room/join-by-code', { code, token });
+  const d = await postJSON('/api/room/join-by-code', { code, token: tk });
   if (d.code !== 'ok') { alert(d.error || '进入失败'); return; }
   if (d.gameType !== GAME_TYPE) {
-    // 房间码属于另一种游戏，跳转到对应游戏页并自动进入
     GCAuth.saveBattle(d.gameType, d.roomId, d.player, d.wsToken);
     location.href = '/' + d.gameType + '.html';
     return;
@@ -400,15 +586,21 @@ document.getElementById('btnReconnect').onclick = () => {
   }
 };
 
-// 登录条
-GCAuth.renderAuthBar(document.getElementById('authBar'));
+// 棋盘点击：把点击坐标映射到格子（棋子层 pointer-events:none，点击落在 board 上）
+boardEl.addEventListener('click', (e) => {
+  const rect = boardEl.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width * 9 - 0.5;
+  const y = (e.clientY - rect.top) / rect.height * 11 - 0.5;
+  const col = Math.round(x);
+  let row = Math.round(y < 5 ? y : y - 1);
+  if (col < 0 || col > 8 || row < 0 || row > 9) return;
+  onClickCell(row, col);
+});
 
-// ---- 初始化：按模式（含退出重进恢复） ----
+// ---- 初始化 ----
 async function init() {
-  // 1) URL 带 token：正常对战（兼容旧链接，仍可用）
   if (roomId && token) { connectWS(roomId, player, token); return; }
 
-  // 2) 重连：本地保存了对局 token 且房间仍在进行中
   const saved = GCAuth.loadBattle(GAME_TYPE);
   if (saved && saved.token) {
     try {
@@ -419,8 +611,9 @@ async function init() {
     GCAuth.clearBattle(GAME_TYPE);
   }
 
-  // 3) 预览 + 房间码入口
+  // 预览模式
   xq = new Xiangqi();
+  buildPieces();
   render();
   betBadge.textContent = '演示';
   metaEl.textContent = '中国象棋 · 红方先手（楚河汉界）';
@@ -429,6 +622,7 @@ async function init() {
   statusEl.textContent = '登录后输入机器人私聊的房间码进入对战';
   statusEl.className = 'status';
 }
+GCAuth.renderAuthBar(document.getElementById('authBar'));
 init();
 </script>
 </body>
