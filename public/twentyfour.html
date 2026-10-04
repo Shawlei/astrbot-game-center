@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>24点</title>
 <link rel="stylesheet" href="/css/style.css">
+<style>
+.puzzle .num { cursor: pointer; transition: transform .1s ease, border-color .15s ease; }
+.puzzle .num:hover { border-color: var(--accent); transform: translateY(-3px); }
+.puzzle .num:active { transform: scale(.9); }
+.ops { display: flex; gap: 6px; flex-wrap: wrap; }
+.ops button {
+  flex: 1; min-width: 44px; padding: 9px 0; font-size: 17px; font-weight: 700;
+}
+.ops button.op-fn { flex: 0 0 auto; min-width: 52px; color: var(--muted); font-size: 14px; }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -27,6 +37,16 @@
       </div>
       <div class="row">
         <input id="expr" type="text" placeholder="表达式，如 8/(3-8/3)" autocomplete="off">
+      </div>
+      <div class="ops" id="ops">
+        <button type="button" data-op="+">+</button>
+        <button type="button" data-op="-">−</button>
+        <button type="button" data-op="*">×</button>
+        <button type="button" data-op="/">÷</button>
+        <button type="button" data-op="(">(</button>
+        <button type="button" data-op=")">)</button>
+        <button type="button" class="op-fn" data-op="back">⌫</button>
+        <button type="button" class="op-fn" data-op="clear">清空</button>
       </div>
       <button id="btnNew" class="primary">出新题</button>
       <button id="btnSubmit" class="primary" style="display:none">提交答案</button>
@@ -88,6 +108,8 @@ async function newPuzzle() {
     const d = document.createElement('div');
     d.className = 'num';
     d.textContent = n;
+    d.title = '点击填入表达式';
+    d.onclick = () => appendToExpr(String(n));
     puzzleEl.appendChild(d);
   }
   btnSubmit.style.display = 'inline-block';
@@ -134,6 +156,18 @@ function escapeHtml(s) {
 
 btnNew.onclick = newPuzzle;
 btnSubmit.onclick = submit;
+
+// ---- 表达式快捷输入：数字块可点 + 操作符按钮 ----
+const exprInput = document.getElementById('expr');
+function appendToExpr(s) { exprInput.value += s; exprInput.focus(); }
+document.querySelectorAll('#ops button').forEach((b) => {
+  b.onclick = () => {
+    const op = b.dataset.op;
+    if (op === 'back') exprInput.value = exprInput.value.slice(0, -1);
+    else if (op === 'clear') exprInput.value = '';
+    else appendToExpr(op);
+  };
+});
 </script>
 </body>
 </html>

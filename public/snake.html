@@ -6,7 +6,7 @@
 <title>贪吃蛇</title>
 <link rel="stylesheet" href="/css/style.css">
 <style>
-#board { display: block; margin: 0 auto; background: #11151f; border: 1px solid var(--border); border-radius: 12px; image-rendering: pixelated; touch-action: none; }
+#board { display: block; margin: 0 auto; background: #11151f; border: 1px solid var(--border); border-radius: 12px; image-rendering: pixelated; touch-action: none; max-width: 100%; height: auto; }
 .ctrl { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; }
 .dpad {
   width: 58px; height: 58px; font-size: 22px; border-radius: 14px;
@@ -133,17 +133,49 @@ function render() {
   ctx.strokeStyle = 'rgba(255,255,255,.04)';
   for (let i = 1; i < W; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, boardEl.height); ctx.stroke(); }
   for (let i = 1; i < H; i++) { ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(boardEl.width, i * CELL); ctx.stroke(); }
-  // 食物
+  // 食物（果实质感：叶子 + 红色渐变果实 + 高光）
   if (food) {
-    ctx.fillStyle = '#f0b429';
+    const fx = food.x * CELL + CELL / 2, fy = food.y * CELL + CELL / 2;
+    const fr = CELL * 0.38;
+    ctx.fillStyle = '#3ecf8e';
     ctx.beginPath();
-    ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL * 0.38, 0, Math.PI * 2);
+    ctx.ellipse(fx, fy - fr, fr * 0.38, fr * 0.22, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    const g = ctx.createRadialGradient(fx - fr * 0.3, fy - fr * 0.3, fr * 0.15, fx, fy, fr);
+    g.addColorStop(0, '#ff8a80');
+    g.addColorStop(1, '#e53935');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath();
+    ctx.arc(fx - fr * 0.32, fy - fr * 0.35, fr * 0.16, 0, Math.PI * 2);
     ctx.fill();
   }
   // 蛇
   snake.forEach((s, i) => {
-    ctx.fillStyle = i === 0 ? '#3ecf8e' : '#2aa874';
-    ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);
+    if (i === 0) {
+      // 蛇头：更亮的绿 + 朝向眼睛
+      ctx.fillStyle = '#43e89a';
+      ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);
+      const [dx, dy] = DIR_DELTA[dir];
+      const cx = s.x * CELL + CELL / 2 + dx * CELL * 0.16;
+      const cy = s.y * CELL + CELL / 2 + dy * CELL * 0.16;
+      const px = -dy, py = dx; // 垂直方向
+      const er = CELL * 0.16;
+      for (const sgn of [-1, 1]) {
+        const ex = cx + px * CELL * 0.20 * sgn;
+        const ey = cy + py * CELL * 0.20 * sgn;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1b1e26';
+        ctx.beginPath(); ctx.arc(ex + dx * er * 0.45, ey + dy * er * 0.45, er * 0.5, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = '#2aa874';
+      ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);
+    }
   });
   scoreEl.textContent = '得分：' + score;
 }

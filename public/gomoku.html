@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/css/style.css">
 <style>
 #board {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   width: min(520px, 92vw);
@@ -16,6 +17,11 @@
   border-radius: 6px;
   overflow: hidden;
   user-select: none;
+}
+#boardDecor {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
 }
 .cell {
   border-right: 1px solid rgba(138,90,43,.3);
@@ -30,9 +36,11 @@
 }
 .stone.black { background: radial-gradient(circle at 35% 30%, #4a4f5c, #1b1e26); }
 .stone.white { background: radial-gradient(circle at 35% 30%, #ffffff, #d8dbe6); }
+.cell.last { background: rgba(255, 138, 26, .32); }
 .cell.last::after {
-  content: ''; position: absolute; width: 22%; height: 22%;
-  border-radius: 50%; background: rgba(224,86,92,.9);
+  content: ''; position: absolute; width: 24%; height: 24%;
+  border-radius: 50%; background: rgba(224,86,92,.92);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.45);
 }
 .timer { text-align: center; font-size: 13px; color: var(--gold); margin-top: 8px; font-variant-numeric: tabular-nums; min-height: 20px; }
 .timer.urgent { color: var(--red); font-weight: 600; }
@@ -110,8 +118,15 @@ const panelEl = document.getElementById('panel');
 const codeBox = document.getElementById('codeBox');
 const btnResign = document.getElementById('btnResign');
 
+// 星位装饰层：天元(7,7) + 四星(3,3)(3,11)(11,3)(11,11)，viewBox 0 0 15 15 与 15×15 grid 对齐
+const boardDecorSVG = (() => {
+  const star = (c, r) => '<circle cx="' + (c + 0.5) + '" cy="' + (r + 0.5) + '" r="0.17" fill="#8a5a2b"></circle>';
+  return '<svg id="boardDecor" viewBox="0 0 15 15" preserveAspectRatio="none">' +
+    star(3, 3) + star(11, 3) + star(7, 7) + star(3, 11) + star(11, 11) + '</svg>';
+})();
+
 function render() {
-  boardEl.innerHTML = '';
+  boardEl.innerHTML = boardDecorSVG;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       const cell = document.createElement('div');
