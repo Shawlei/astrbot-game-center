@@ -225,6 +225,7 @@ let myTurn = false;
 let myPlayer = player;
 let myColor = player === 1 ? 'r' : 'b';
 let oppColor = myColor === 'r' ? 'b' : 'r';
+let flipped = false;        // 黑方视角时棋盘上下翻转，让己方棋子始终在下
 let selectedFrom = null;
 let legalMoves = [];       // 当前选中棋子的合法走法（verbose 数组）
 let lastMove = null;       // {from:{row,col}, to:{row,col}}
@@ -260,8 +261,9 @@ const capturedByOppEl = document.getElementById('capturedByOppEl');
 function algebraicToRC(sq) { return { row: 9 - (sq.charCodeAt(1) - 48), col: sq.charCodeAt(0) - 97 }; }
 function rcToAlgebraic(row, col) { return 'abcdefghi'[col] + (9 - row); }
 function yOf(row) { return row < 5 ? row : row + 1; }
+function visualRow(row) { return flipped ? (9 - row) : row; }
 function posX(col) { return ((col + 0.5) / 9 * 100) + '%'; }
-function posY(row) { return ((yOf(row) + 0.5) / 11 * 100) + '%'; }
+function posY(row) { return ((yOf(visualRow(row)) + 0.5) / 11 * 100) + '%'; }
 
 // ---- 棋盘 SVG ----
 function buildBoardSvg() {
@@ -476,6 +478,7 @@ function connectWS(rid, pl, tk) {
   myPlayer = pl;
   myColor = pl === 1 ? 'r' : 'b';
   oppColor = myColor === 'r' ? 'b' : 'r';
+  flipped = myColor === 'b';
   curRid = rid; curPl = pl; curTk = tk;
   ws = new WebSocket(
     (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
@@ -604,8 +607,9 @@ boardEl.addEventListener('click', (e) => {
   const x = (e.clientX - rect.left) / rect.width * 9 - 0.5;
   const y = (e.clientY - rect.top) / rect.height * 11 - 0.5;
   const col = Math.round(x);
-  let row = Math.round(y < 5 ? y : y - 1);
-  if (col < 0 || col > 8 || row < 0 || row > 9) return;
+  const vrow = Math.round(y < 5 ? y : y - 1);
+  if (col < 0 || col > 8 || vrow < 0 || vrow > 9) return;
+  const row = flipped ? (9 - vrow) : vrow;
   onClickCell(row, col);
 });
 
