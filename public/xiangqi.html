@@ -115,6 +115,18 @@
 }
 .clock.active { color: var(--text); border-color: var(--accent); }
 .clock.urgent { color: var(--red); border-color: var(--red); }
+
+/* ============ 手机端紧凑布局 ============ */
+@media (max-width: 520px) {
+  .side { padding: 7px 10px; gap: 8px; }
+  .avatar { width: 30px; height: 30px; font-size: 15px; }
+  .pname { font-size: 13px; }
+  .ptag { font-size: 11px; }
+  .clock { font-size: 15px; padding: 3px 8px; }
+  .captured { gap: 1px; }
+  .captured .m { width: 13px; height: 13px; font-size: 8px; }
+  .piece .pchar { font-size: clamp(13px, 4.4vw, 20px); }
+}
 </style>
 </head>
 <body>
@@ -138,7 +150,7 @@
             <div class="ptag" id="oppTag"></div>
           </div>
         </div>
-        <div class="captured" id="capturedByMeEl" title="你已吃掉的对方棋子"></div>
+        <div class="captured" id="capturedByOppEl" title="对方吃掉的你的棋子"></div>
         <div class="clock" id="oppClock">--:--</div>
       </div>
 
@@ -158,7 +170,7 @@
             <div class="ptag" id="meTag"></div>
           </div>
         </div>
-        <div class="captured" id="capturedByOppEl" title="对方吃掉的你的棋子"></div>
+        <div class="captured" id="capturedByMeEl" title="你吃掉的对方棋子"></div>
         <div class="clock" id="meClock">--:--</div>
       </div>
     </div>
