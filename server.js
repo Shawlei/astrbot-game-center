@@ -544,6 +544,12 @@ app.get('/api/market/leaderboard', (req, res) => {
   res.json({ list });
 });
 
+// 成交流历史（页面刷新后长留，最新在前）
+app.get('/api/market/trades', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+  res.json({ list: market.trades(limit) });
+});
+
 // ---- 网页邀请 / 接受 队列（bot 轮询处理，bot 负责解析 QQ→账号身份） ----
 
 // 发起邀请：网页已登录（token），游戏服务直接解析 userId 交由 bot 建房 + 群广播
@@ -718,7 +724,7 @@ const safeBroadcast = (fn) => (arg) => { try { fn(arg); } catch (e) { /* ignore 
 
 market.setHandlers({
   onQuote: safeBroadcast((d) => broadcastMarket({ type: 'quote', ...d })),
-  onTrade: safeBroadcast((t) => broadcastMarket({ type: 'trade', side: t.type, username: t.username, code: t.code, name: t.name, price: t.price, amount: t.amount, shares: t.shares })),
+  onTrade: safeBroadcast((t) => broadcastMarket({ type: 'trade', side: t.type, id: t.id, time: t.time, username: t.username, code: t.code, name: t.name, price: t.price, amount: t.amount, shares: t.shares })),
   onNews: safeBroadcast((n) => broadcastMarket({ type: 'news', ...n })),
 });
 

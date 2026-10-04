@@ -252,6 +252,7 @@ function fmtAmt(n) {
 function chgClass(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : 'flat'); }
 function setStatus(t, cls) { $('status').textContent = t; $('status').className = 'status' + (cls ? ' ' + cls : ''); }
 function hhmmss() { const d = new Date(); return d.toTimeString().slice(0, 8); }
+function fmtTime(ts) { if (!ts) return hhmmss(); return new Date(ts).toTimeString().slice(0, 8); }
 
 $('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
 
@@ -295,7 +296,8 @@ function onQuote(m) {
 }
 
 function onTrade(t) {
-  feed.unshift({ time: hhmmss(), type: t.side || t.type, username: t.username, name: t.name, amount: t.amount, shares: t.shares });
+  if (!t.id || feed.some((f) => f.id === t.id)) return;
+  feed.unshift({ id: t.id, time: fmtTime(t.time), type: t.side || t.type, username: t.username, name: t.name, amount: t.amount, shares: t.shares });
   if (feed.length > 50) feed.pop();
   renderFeed();
   loadRank();
@@ -612,6 +614,25 @@ function renderFeed() {
   });
 }
 
+// 拉取成交流历史（页面刷新后长留），与实时 onTrade 按 id 去重合并
+async function loadTrades() {
+  try {
+    const j = await (await fetch('/api/market/trades?limit=50')).json();
+    const list = j.list || [];
+    let changed = false;
+    list.forEach((t) => {
+      if (feed.some((f) => f.id === t.id)) return;
+      feed.push({ id: t.id, time: fmtTime(t.time), type: t.type, username: t.username, name: t.name, amount: t.amount, shares: t.shares });
+      changed = true;
+    });
+    if (changed) {
+      feed.sort((a, b) => b.id - a.id);
+      if (feed.length > 50) feed = feed.slice(0, 50);
+      renderFeed();
+    }
+  } catch (e) { /* ignore */ }
+}
+
 // ---- 行情加载（首次 + 断线兜底） ----
 async function loadStocks() {
   try {
@@ -771,6 +792,7 @@ GCAuth.renderAuthBar($('authBar'), () => {
 });
 loadStocks();
 loadRank();
+loadTrades();
 connectWS();
 // WS 失效时的轮询兜底 + 余额兜底
 setInterval(() => { if (!wsConnected) loadStocks(); }, 10000);
