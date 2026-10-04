@@ -359,15 +359,15 @@ document.addEventListener('keyup', (e) => {
   else if (k === ' ' || k === 'Enter') keyLaunch = false;
 });
 
-function bindTouch(btn, setOn, setOff) {
-  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); setOn(true); btn.classList.add('on'); });
-  btn.addEventListener('pointerup', (e) => { e.preventDefault(); setOn(false); btn.classList.remove('on'); });
-  btn.addEventListener('pointerleave', () => { setOn(false); btn.classList.remove('on'); });
-  btn.addEventListener('pointercancel', () => { setOn(false); btn.classList.remove('on'); });
+function bindTouch(btn, set) {
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); btn.classList.add('on'); });
+  btn.addEventListener('pointerup', (e) => { e.preventDefault(); set(false); btn.classList.remove('on'); });
+  btn.addEventListener('pointerleave', () => { set(false); btn.classList.remove('on'); });
+  btn.addEventListener('pointercancel', () => { set(false); btn.classList.remove('on'); });
 }
-bindTouch(document.getElementById('btnLeft'), (v) => { touchLeft = v; }, () => {});
-bindTouch(document.getElementById('btnRight'), (v) => { touchRight = v; }, () => {});
-bindTouch(document.getElementById('btnLaunch'), (v) => { touchLaunch = v; }, () => {});
+bindTouch(document.getElementById('btnLeft'), (v) => { touchLeft = v; });
+bindTouch(document.getElementById('btnRight'), (v) => { touchRight = v; });
+bindTouch(document.getElementById('btnLaunch'), (v) => { touchLaunch = v; });
 
 document.getElementById('btnStart').onclick = start;
 document.getElementById('btnEnd').onclick = endManually;
