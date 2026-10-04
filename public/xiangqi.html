@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/css/style.css">
 <style>
 #board {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   width: min(520px, 92vw);
@@ -16,6 +17,11 @@
   border-radius: 6px;
   overflow: hidden;
   user-select: none;
+}
+#boardDecor {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
 }
 .cell {
   position: relative;
@@ -49,6 +55,13 @@
 .cell.target::after {
   content: ''; position: absolute; width: 26%; height: 26%;
   border-radius: 50%; background: rgba(62,207,142,.8);
+}
+.cell.last-from { background: rgba(255, 205, 0, .35); }
+.cell.last-to { background: rgba(255, 138, 26, .40); }
+.cell.last-to::after {
+  content: ''; position: absolute; width: 30%; height: 30%;
+  border-radius: 50%; background: rgba(224, 70, 60, .8);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.5);
 }
 .timer { text-align: center; font-size: 13px; color: var(--gold); margin-top: 8px; font-variant-numeric: tabular-nums; min-height: 20px; }
 .timer.urgent { color: var(--red); font-weight: 600; }
@@ -115,6 +128,7 @@ let myPlayer = player;
 let myColor = player === 1 ? 'r' : 'b';
 let selectedFrom = null;
 let legalTo = new Set();
+let lastMove = null;   // 上一步落子 {from:{row,col}, to:{row,col}}，用于高亮对方/自己刚走的一步
 
 const GAME_TYPE = 'xiangqi';
 let curRid = null, curPl = null, curTk = null;   // 当前对局连接信息（用于重连）
@@ -138,9 +152,26 @@ function rcToAlgebraic(row, col) {
   return 'abcdefghi'[col] + (9 - row);
 }
 
+// 棋盘装饰层：九宫斜线 + 兵/卒/炮位十字标记（viewBox 0 0 9 11，与棋盘 grid 对齐）
+const boardDecorSVG = (() => {
+  const marks = [];
+  const cross = (cx, cy) =>
+    `<path d="M ${(cx - 0.18).toFixed(3)} ${cy} H ${(cx + 0.18).toFixed(3)} M ${cx} ${(cy - 0.18).toFixed(3)} V ${(cy + 0.18).toFixed(3)}" stroke="#8a5a2b" stroke-width="0.05" fill="none"/>`;
+  // 兵/卒位：file 0,2,4,6,8；黑卒 row3（y 中心 3.5）、红兵 row6（y 中心 7.5）
+  for (const c of [0, 2, 4, 6, 8]) { marks.push(cross(c + 0.5, 3.5), cross(c + 0.5, 7.5)); }
+  // 炮位：file 1,7；黑炮 row2（y 中心 2.5）、红炮 row7（y 中心 8.5）
+  for (const c of [1, 7]) { marks.push(cross(c + 0.5, 2.5), cross(c + 0.5, 8.5)); }
+  return '<svg id="boardDecor" viewBox="0 0 9 11" preserveAspectRatio="none">' +
+    '<line x1="3" y1="0" x2="6" y2="3" stroke="#8a5a2b" stroke-width="0.06"/>' +
+    '<line x1="6" y1="0" x2="3" y2="3" stroke="#8a5a2b" stroke-width="0.06"/>' +
+    '<line x1="3" y1="8" x2="6" y2="11" stroke="#8a5a2b" stroke-width="0.06"/>' +
+    '<line x1="6" y1="8" x2="3" y2="11" stroke="#8a5a2b" stroke-width="0.06"/>' +
+    marks.join('') + '</svg>';
+})();
+
 function render() {
   const b = xq.board();
-  boardEl.innerHTML = '';
+  boardEl.innerHTML = boardDecorSVG;
   for (let gr = 0; gr < 11; gr++) {
     if (gr === 5) {
       const river = document.createElement('div');
@@ -166,6 +197,10 @@ function render() {
       if (legalTo.has(col + ',' + row)) {
         cell.classList.add('target');
       }
+      if (lastMove) {
+        if (lastMove.from.row === row && lastMove.from.col === col) cell.classList.add('last-from');
+        if (lastMove.to.row === row && lastMove.to.col === col) cell.classList.add('last-to');
+      }
       cell.addEventListener('click', () => onClickCell(row, col));
       boardEl.appendChild(cell);
     }
@@ -184,6 +219,7 @@ function onClickCell(row, col) {
       const to = rcToAlgebraic(row, col);
       const res = xq.move({ from, to });
       if (res) {
+        lastMove = { from: { row: selectedFrom.row, col: selectedFrom.col }, to: { row, col } };
         ws.send(JSON.stringify({ type: 'move', move: { from, to } }));
         selectedFrom = null; legalTo = new Set();
         render();
@@ -283,6 +319,7 @@ function connectWS(rid, pl, tk) {
         '你：<b>' + (msg.you.name || msg.you.qq) + '</b>（' + (myPlayer === 1 ? '红方先手' : '黑方') + '）' +
         '　vs　对手：<b>' + (msg.opponent.name || msg.opponent.qq) + '</b>';
       xq = msg.state && msg.state.fen ? new Xiangqi(msg.state.fen) : new Xiangqi();
+      lastMove = null; // 重连后无历史步信息，清空上一步高亮
       render();
       setTurn((msg.state.turn || 1) === myPlayer);
       startTimer(msg.deadline, msg.timeoutMs);
@@ -292,6 +329,7 @@ function connectWS(rid, pl, tk) {
       document.getElementById('btnReconnect').style.display = 'none';
     } else if (msg.type === 'move') {
       xq.move({ from: msg.move.from, to: msg.move.to });
+      lastMove = { from: algebraicToRC(msg.move.from), to: algebraicToRC(msg.move.to) };
       selectedFrom = null; legalTo = new Set();
       render();
       setTurn(msg.turn === myPlayer);
