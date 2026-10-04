@@ -330,20 +330,40 @@ async function settleTicket(userId, gameType, betQuota, mult) {
   return net;
 }
 
-// 钉板弹珠：一轮（扣门票 + 服务端随机游走 + 结算）
-app.post('/api/solo/plinko', async (req, res) => {
+// 弹球机：开始（扣门票 + 发种子）
+app.post('/api/solo/pinball/start', async (req, res) => {
   try {
     const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet);
     if (rb.error) return res.status(400).json({ error: rb.error });
     if (settle.ready() && !(await settle.debit(rb.player.userId, rb.betQuota))) {
       return res.status(400).json({ error: '余额不足' });
     }
-    const drop = solo.plinkoDrop();
-    const net = await settleTicket(rb.player.userId, 'plinko', rb.betQuota, drop.mult);
+    const id = crypto.randomBytes(8).toString('hex');
+    const seed = (Math.random() * 0x7fffffff) >>> 0;
+    soloSessions.set(id, {
+      id, gameType: 'pinball', userId: rb.player.userId, username: rb.player.username,
+      bet: rb.betUsd, betQuota: rb.betQuota, seed, state: 'playing', createdAt: Date.now(),
+    });
+    res.json({ code: 'ok', sessionId: id, bet: rb.betUsd, seed });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 弹球机：结束（服务端回放逐帧输入得权威分数 + 结算）
+app.post('/api/solo/pinball/end', async (req, res) => {
+  try {
+    const s = soloSessions.get(req.body && req.body.sessionId);
+    if (!s || s.state !== 'playing') return res.status(404).json({ error: '对局不存在或已结束' });
+    const inputs = Array.isArray(req.body && req.body.inputs) ? req.body.inputs : [];
+    const rep = solo.pinballReplay(s.seed, inputs);
+    const mult = solo.pinballMult(rep.score);
+    const net = await settleTicket(s.userId, 'pinball', s.betQuota, mult);
+    soloSessions.delete(s.id);
     res.json({
-      code: 'ok', bet: rb.betUsd, slot: drop.slot, mult: drop.mult, path: drop.path,
-      netUsd: usd(net), quota: settle.ready() ? await settle.balance(rb.player.userId) : null,
-      username: rb.player.username,
+      code: 'ok', bet: s.bet, score: rep.score, mult, balls: rep.balls, over: rep.over,
+      netUsd: usd(net), quota: settle.ready() ? await settle.balance(s.userId) : null,
+      username: s.username,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

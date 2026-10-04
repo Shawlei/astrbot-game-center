@@ -255,8 +255,8 @@ function loadHoldings(uid) {
 }
 
 function loadGameLB() {
-  const games = ['xiangqi', 'gomoku', 'plinko', 'snake', 'breakout', 'twentyfour'];
-  const names = { xiangqi: '象棋', gomoku: '五子棋', plinko: '钉板弹珠', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点' };
+  const games = ['xiangqi', 'gomoku', 'pinball', 'snake', 'breakout', 'twentyfour'];
+  const names = { xiangqi: '象棋', gomoku: '五子棋', pinball: '弹球机', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点' };
   let sel = currentGameType || 'xiangqi';
   $('dataBody').innerHTML = `<div class="save-row">
     <select id="gameSel" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit">

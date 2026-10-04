@@ -57,7 +57,7 @@ const q = gid ? ('?gid=' + encodeURIComponent(gid)) : '';
 
 const SOLO_GAMES = [
   { href: '/snake.html' + q, emoji: '🐍', name: '贪吃蛇', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
-  { href: '/plinko.html' + q, emoji: '🪙', name: '钉板弹珠', desc: '小球下落撞钉，落槽定倍率，边槽高奖。' },
+  { href: '/pinball.html' + q, emoji: '🕹️', name: '弹球机', desc: '经典弹球，底部挡板弹球撞得分点，按得分结倍率。' },
   { href: '/breakout.html' + q, emoji: '🎮', name: '打砖块', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
   { href: '/twentyfour.html' + q, emoji: '🧮', name: '24点', desc: '四张牌算出 24，答对赢额、答错扣额。' },
 ];
@@ -107,7 +107,7 @@ GCAuth.renderAuthBar(document.getElementById('authBar'));
 // ---- 排行榜 ----
 const LB = [
   { key: 'snake', label: '贪吃蛇', type: 'solo' },
-  { key: 'plinko', label: '钉板弹珠', type: 'solo' },
+  { key: 'pinball', label: '弹球机', type: 'solo' },
   { key: 'breakout', label: '打砖块', type: 'solo' },
   { key: 'twentyfour', label: '24点', type: 'solo' },
   { key: 'xiangqi', label: '象棋', type: 'pvp' },

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>弹球机</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+#stage { display: flex; justify-content: center; }
+#board {
+  display: block; margin: 0 auto;
+  background: #0b0f20;
+  border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 10px 34px rgba(0,0,0,.4), inset 0 0 60px rgba(108,124,255,.05);
+  touch-action: none; max-width: min(480px, 94vw); height: auto;
+  -webkit-user-select: none; user-select: none;
+}
+.hud {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 10px 0 4px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.hud .score { color: var(--gold); }
+.hud .ball { color: var(--accent); letter-spacing: 2px; }
+.hud .mult { color: var(--muted); font-size: 12px; font-weight: 500; }
+.legend { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.8; }
+
+/* 底部触控挡板按钮 */
+.controls {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; margin-top: 14px; user-select: none; -webkit-user-select: none;
+}
+.flip-btn {
+  flex: 1; height: 64px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--panel-2); color: var(--muted); font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; letter-spacing: 1px;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.flip-btn.left { background: linear-gradient(135deg, rgba(108,124,255,.25), rgba(108,124,255,.08)); }
+.flip-btn.right { background: linear-gradient(135deg, rgba(177,108,255,.25), rgba(177,108,255,.08)); }
+.flip-btn.on { border-color: var(--accent); color: #fff; }
+.launch-btn {
+  width: 108px; height: 64px; border-radius: 14px; border: 1px solid rgba(240,180,41,.45);
+  background: linear-gradient(135deg, rgba(240,180,41,.28), rgba(240,180,41,.08));
+  color: var(--gold); font-size: 15px; font-weight: 700; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.launch-btn.on { background: rgba(240,180,41,.4); color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🕹️ 弹球机</div>
+    </div>
+    <span class="badge" id="betBadge">门票 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">经典弹球机：按住 <b>发射</b> 蓄力、松开把球打进盘面，再用底部左右<b>挡板</b>把球弹上去撞得分点。3 球制，球从中间漏掉即失一球；按最终得分结倍率，最高 <b>3 倍</b>。</div>
+
+    <div id="stage"><canvas id="board" width="480" height="640"></canvas></div>
+    <div class="hud">
+      <span class="score" id="scoreEl">得分：0</span>
+      <span class="ball" id="ballEl">●●●</span>
+      <span class="mult" id="multEl">倍率 ×0.1~×3</span>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="门票美元（10~200）" min="10" max="200" value="10">
+      </div>
+      <button id="btnStart" class="primary">开始游戏</button>
+      <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
+      <div class="tip">开始即扣门票额度。按住「发射」蓄力、松开发射；底部左右挡板把球弹回盘面撞 bumper（30 分）、靶子（50 分）、顶部通道（100 分）。倍率档：≥180 分 0.3x、≥350 分 0.5x、≥600 分 0.8x、≥1000 分 1.3x、≥1600 分 2x、≥2500 分 3x。</div>
+    </div>
+
+    <!-- 触控挡板 + 发射 -->
+    <div class="controls" id="controls" style="display:none">
+      <div class="flip-btn left" id="btnLeft">◀ 左</div>
+      <div class="launch-btn" id="btnLaunch">发 射</div>
+      <div class="flip-btn right" id="btnRight">右 ▶</div>
+    </div>
+
+    <div class="legend">键盘：<b>A / ←</b> 左挡板，<b>D / →</b> 右挡板，<b>空格 / 回车</b> 按住蓄力发射（松开即发）。手机直接点按下方按钮。</div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">登录后点「开始游戏」</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script src="/js/pinball-core.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+const C = window.PinballCore;
+const W = C.W, H = C.H;
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000;
+let sessionId = null;
+let running = false, over = false;
+
+const boardEl = document.getElementById('board');
+const ctx = boardEl.getContext('2d');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const scoreEl = document.getElementById('scoreEl');
+const ballEl = document.getElementById('ballEl');
+
+// ---- 游戏状态 ----
+let state = null;
+let inputs = [];
+
+// ---- 输入状态（键盘 + 触控合并） ----
+let keyLeft = false, keyRight = false, keyLaunch = false;
+let touchLeft = false, touchRight = false, touchLaunch = false;
+
+fetch('/api/health').then((r) => r.json()).then((j) => {
+  if (j.minBet) minBet = j.minBet;
+  if (j.maxBet) maxBet = j.maxBet;
+  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+  document.getElementById('betBadge').textContent = '门票 $' + minBet + '~$' + maxBet;
+  const b = document.getElementById('bet'); b.min = minBet; b.max = maxBet; b.value = minBet;
+}).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { status: r.status, data: await r.json() };
+}
+
+// ---- 渲染 ----
+function drawBar(x1, y1, x2, y2, w, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function drawCircle(cx, cy, r, fill, glow) {
+  if (glow) {
+    const g = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 1.8);
+    g.addColorStop(0, glow);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = fill;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // 盘面背景
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#141a38');
+  bg.addColorStop(0.55, '#0d1229');
+  bg.addColorStop(1, '#0a0e1e');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 顶部圆拱
+  ctx.strokeStyle = '#2c3152';
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(240, 60, 200, Math.PI, 0); ctx.stroke();
+
+  // 侧墙轨道
+  drawBar(6, 60, 6, FLOOR_Y + 30, 8, '#2c3152');
+  drawBar(W - 6, 60, W - 6, FLOOR_Y + 30, 8, '#2c3152');
+
+  // 顶部奖励通道
+  const laneOn = state && state.laneBonusAvail;
+  ctx.fillStyle = laneOn ? 'rgba(62,207,142,.22)' : 'rgba(139,144,168,.08)';
+  ctx.fillRect(60, 26, 360, 40);
+  ctx.fillStyle = laneOn ? '#3ecf8e' : '#3a4058';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('+100', 240, 46);
+
+  // bumper（圆形挡板）
+  for (const bp of C.BUMPERS) {
+    drawCircle(bp.x, bp.y, bp.r, 'rgba(108,124,255,.85)', 'rgba(108,124,255,.35)');
+    drawCircle(bp.x, bp.y, bp.r * 0.45, 'rgba(255,255,255,.35)');
+  }
+
+  // 靶子（一次性）
+  if (state) {
+    state.targets.forEach((t, i) => {
+      const src = C.TARGETS[i];
+      if (t.active) drawCircle(src.x, src.y, src.r, 'rgba(240,180,41,.9)', 'rgba(240,180,41,.4)');
+      else drawCircle(src.x, src.y, src.r, 'rgba(58,64,88,.7)');
+    });
+  } else {
+    for (const t of C.TARGETS) drawCircle(t.x, t.y, t.r, 'rgba(240,180,41,.9)', 'rgba(240,180,41,.4)');
+  }
+
+  // 发射轨道（右侧）
+  ctx.fillStyle = '#0a0e1e';
+  ctx.fillRect(W - 34, 150, 34, 470);
+  ctx.strokeStyle = '#2c3152';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(W - 34, 150, 34, 470);
+
+  // 底部平台 + 中间漏球口
+  ctx.fillStyle = '#1a1e30';
+  ctx.fillRect(0, FLOOR_Y, W, H - FLOOR_Y);
+  ctx.fillStyle = '#080b16';
+  ctx.fillRect(240 - C.DRAIN_HALF, FLOOR_Y, C.DRAIN_HALF * 2, H - FLOOR_Y);
+  ctx.fillStyle = '#2c3152';
+  ctx.fillRect(0, FLOOR_Y - 2, 240 - C.DRAIN_HALF, 4);
+  ctx.fillRect(240 + C.DRAIN_HALF, FLOOR_Y - 2, 240 - C.DRAIN_HALF, 4);
+
+  // 挡板（flipper）
+  if (state) {
+    const lc = C.flipperCenter(state.flipL, C.FL_L_REST, C.FL_L_RAISED);
+    const rc = C.flipperCenter(state.flipR, C.FR_REST, C.FR_RAISED);
+    const lOn = state.flipL > 0.5;
+    const rOn = state.flipR > 0.5;
+    drawBar(C.FL_L_ANCHOR.x, C.FL_L_ANCHOR.y, lc.x, lc.y, 16, lOn ? '#8b96ff' : '#3a4270');
+    drawBar(C.FR_ANCHOR.x, C.FR_ANCHOR.y, rc.x, rc.y, 16, rOn ? '#c88bff' : '#3a4270');
+  } else {
+    drawBar(C.FL_L_ANCHOR.x, C.FL_L_ANCHOR.y, C.FL_L_REST.x, C.FL_L_REST.y, 16, '#3a4270');
+    drawBar(C.FR_ANCHOR.x, C.FR_ANCHOR.y, C.FR_REST.x, C.FR_REST.y, 16, '#3a4270');
+  }
+
+  // 小球
+  if (state) {
+    const b = state.ball;
+    drawCircle(b.x, b.y, C.BALL_R, '#fff', 'rgba(255,233,168,.8)');
+    // 发射蓄力条
+    if (state.phase === 'launch') {
+      ctx.fillStyle = '#0a0e1e';
+      ctx.fillRect(W - 20, 250, 10, 200);
+      ctx.fillStyle = '#f0b429';
+      ctx.fillRect(W - 20, 250 + 200 * (1 - state.power), 10, 200 * state.power);
+      ctx.strokeStyle = 'rgba(240,180,41,.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(W - 20, 250, 10, 200);
+    }
+  }
+
+  scoreEl.textContent = '得分：' + (state ? state.score : 0);
+  if (state) {
+    const leftB = C.BALLS_PER_GAME - state.balls;
+    ballEl.textContent = '●'.repeat(Math.max(0, state.balls)) + '○'.repeat(leftB);
+  }
+}
+
+// ---- 主循环：固定 1/60s ----
+let last = 0, acc = 0;
+const STEP = 1000 / 60;
+function loop(now) {
+  if (!running) return;
+  if (!last) last = now;
+  acc += now - last; last = now;
+  while (acc >= STEP) {
+    acc -= STEP;
+    tick();
+    if (over) break;
+  }
+  render();
+  if (!over) requestAnimationFrame(loop);
+  else settle();
+}
+
+function tick() {
+  if (over) return;
+  const m = (keyLeft || touchLeft ? C.IN_LEFT : 0)
+         | (keyRight || touchRight ? C.IN_RIGHT : 0)
+         | (keyLaunch || touchLaunch ? C.IN_LAUNCH : 0);
+  inputs.push(m);
+  C.step(state, m);
+  if (state.over) over = true;
+  else if (inputs.length >= C.MAX_TICKS) over = true; // 达上限自动结算，避免与服务端截断不一致
+}
+
+async function settle() {
+  if (sessionId == null) return;
+  running = false;
+  const id = sessionId;
+  sessionId = null;
+  setStatus('结算中…');
+  const { status, data } = await post('/api/solo/pinball/end', { sessionId: id, inputs });
+  showResult(status, data);
+}
+
+function showResult(status, data) {
+  document.getElementById('btnEnd').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-block';
+  document.getElementById('controls').style.display = 'none';
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+  resultEl.style.display = 'block';
+  const head = (data.balls <= 0 ? '🕳 3 球耗尽' : '⏹ 结束') + ' · ' + data.score + ' 分';
+  let html = '<div class="big" style="color:' + (data.mult >= 1 ? 'var(--green)' : 'var(--red)') + '">' + head + ' · ' + data.mult + 'x</div>';
+  const net = data.netUsd;
+  html += '<div>门票 $' + data.bet.toFixed(2) + '，本局 ' + (net >= 0 ? '净赚 <b style="color:var(--green)">+$' + net.toFixed(2) + '</b>' : '净亏 <b style="color:var(--red)">-$' + Math.abs(net).toFixed(2) + '</b>') + '</div>';
+  if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  setStatus('点击「开始游戏」再来一局');
+}
+
+async function start() {
+  if (running) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  if (!(bet >= minBet && bet <= maxBet)) { alert('门票需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+
+  const { status, data } = await post('/api/solo/pinball/start', { token, bet });
+  if (status !== 200) { setStatus(data.error || '出错了'); return; }
+
+  sessionId = data.sessionId;
+  state = C.createGame(data.seed);
+  inputs = [];
+  keyLeft = keyRight = keyLaunch = false;
+  touchLeft = touchRight = touchLaunch = false;
+  over = false;
+  resultEl.style.display = 'none';
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnEnd').style.display = 'inline-block';
+  document.getElementById('controls').style.display = 'flex';
+  running = true;
+  last = 0; acc = 0;
+  render();
+  setStatus('按住「发射」蓄力，松开把球打出去；再用挡板弹球');
+  requestAnimationFrame(loop);
+}
+
+function endManually() {
+  if (!running || over) return;
+  over = true;
+  settle();
+}
+
+// ---- 输入 ----
+document.addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); keyLeft = true; }
+  else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); keyRight = true; }
+  else if (k === ' ' || k === 'Enter') { e.preventDefault(); keyLaunch = true; }
+});
+document.addEventListener('keyup', (e) => {
+  const k = e.key;
+  if (k === 'ArrowLeft' || k === 'a' || k === 'A') keyLeft = false;
+  else if (k === 'ArrowRight' || k === 'd' || k === 'D') keyRight = false;
+  else if (k === ' ' || k === 'Enter') keyLaunch = false;
+});
+
+function bindTouch(btn, setOn, setOff) {
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); setOn(true); btn.classList.add('on'); });
+  btn.addEventListener('pointerup', (e) => { e.preventDefault(); setOn(false); btn.classList.remove('on'); });
+  btn.addEventListener('pointerleave', () => { setOn(false); btn.classList.remove('on'); });
+  btn.addEventListener('pointercancel', () => { setOn(false); btn.classList.remove('on'); });
+}
+bindTouch(document.getElementById('btnLeft'), (v) => { touchLeft = v; }, () => {});
+bindTouch(document.getElementById('btnRight'), (v) => { touchRight = v; }, () => {});
+bindTouch(document.getElementById('btnLaunch'), (v) => { touchLaunch = v; }, () => {});
+
+document.getElementById('btnStart').onclick = start;
+document.getElementById('btnEnd').onclick = endManually;
+</script>
+</body>
+</html>
