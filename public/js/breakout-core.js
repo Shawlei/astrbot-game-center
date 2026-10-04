@@ -190,15 +190,13 @@
   }
 
   function breakMult(score) {
-    if (score >= 1600) return 10;
-    if (score >= 1000) return 8;
-    if (score >= 500) return 6;
-    if (score >= 400) return 5;
-    if (score >= 300) return 3;
-    if (score >= 200) return 2;
-    if (score >= 120) return 1.2;
+    if (score >= 1500) return 3;
+    if (score >= 800) return 2;
+    if (score >= 400) return 1.5;
+    if (score >= 200) return 1.2;
+    if (score >= 100) return 1;
     if (score >= 60) return 0.8;
-    if (score >= 20) return 0.5;
+    if (score >= 30) return 0.5;
     return 0.2;
   }
 
