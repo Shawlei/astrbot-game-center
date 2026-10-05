@@ -40,36 +40,37 @@ const CONFIG_SECTIONS = [
 ];
 
 // 游戏设置（按类分区：联机对战 / 单机小游戏 / 模拟股市）
+// fb=回退到全局字段（押注/超时未按游戏覆盖时继承全局值，输入框留空即继承）
 const GAMES_SECTIONS = [
   { id: 'games-pvp', title: '联机对战', fields: [
     { key: 'games.doudizhu.enabled', label: '斗地主 · 启用', type: 'bool' },
-    { key: 'games.doudizhu.minBet', label: '斗地主 · 押注下限（$）', type: 'number' },
-    { key: 'games.doudizhu.maxBet', label: '斗地主 · 押注上限（$）', type: 'number' },
-    { key: 'games.doudizhu.turnTimeoutMs', label: '斗地主 · 思考超时（毫秒）', type: 'number' },
+    { key: 'games.doudizhu.minBet', label: '斗地主 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.doudizhu.maxBet', label: '斗地主 · 押注上限（$）', type: 'number', fb: 'maxBet' },
+    { key: 'games.doudizhu.turnTimeoutMs', label: '斗地主 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
     { key: 'games.doudizhu.allowDouble', label: '斗地主 · 允许加倍阶段', type: 'bool' },
     { key: 'games.doudizhu.allowSuperDouble', label: '斗地主 · 允许超级加倍 ×4', type: 'bool' },
     { key: 'games.doudizhu.allowSpring', label: '斗地主 · 春天/反春翻倍', type: 'bool' },
     { key: 'games.xiangqi.enabled', label: '象棋 · 启用', type: 'bool' },
-    { key: 'games.xiangqi.minBet', label: '象棋 · 押注下限（$）', type: 'number' },
-    { key: 'games.xiangqi.maxBet', label: '象棋 · 押注上限（$）', type: 'number' },
-    { key: 'games.xiangqi.turnTimeoutMs', label: '象棋 · 思考超时（毫秒）', type: 'number' },
+    { key: 'games.xiangqi.minBet', label: '象棋 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.xiangqi.maxBet', label: '象棋 · 押注上限（$）', type: 'number', fb: 'maxBet' },
+    { key: 'games.xiangqi.turnTimeoutMs', label: '象棋 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
     { key: 'games.gomoku.enabled', label: '五子棋 · 启用', type: 'bool' },
-    { key: 'games.gomoku.minBet', label: '五子棋 · 押注下限（$）', type: 'number' },
-    { key: 'games.gomoku.maxBet', label: '五子棋 · 押注上限（$）', type: 'number' },
-    { key: 'games.gomoku.turnTimeoutMs', label: '五子棋 · 思考超时（毫秒）', type: 'number' },
+    { key: 'games.gomoku.minBet', label: '五子棋 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.gomoku.maxBet', label: '五子棋 · 押注上限（$）', type: 'number', fb: 'maxBet' },
+    { key: 'games.gomoku.turnTimeoutMs', label: '五子棋 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
   ]},
   { id: 'games-solo', title: '单机小游戏', fields: [
     { key: 'games.snake.enabled', label: '贪吃蛇 · 启用', type: 'bool' },
-    { key: 'games.snake.minBet', label: '贪吃蛇 · 押注下限（$）', type: 'number' },
-    { key: 'games.snake.maxBet', label: '贪吃蛇 · 押注上限（$）', type: 'number' },
+    { key: 'games.snake.minBet', label: '贪吃蛇 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.snake.maxBet', label: '贪吃蛇 · 押注上限（$）', type: 'number', fb: 'maxBet' },
     { key: 'games.snake.maxMult', label: '贪吃蛇 · 最高倍率', type: 'number', step: '0.1' },
     { key: 'games.breakout.enabled', label: '打砖块 · 启用', type: 'bool' },
-    { key: 'games.breakout.minBet', label: '打砖块 · 押注下限（$）', type: 'number' },
-    { key: 'games.breakout.maxBet', label: '打砖块 · 押注上限（$）', type: 'number' },
+    { key: 'games.breakout.minBet', label: '打砖块 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.breakout.maxBet', label: '打砖块 · 押注上限（$）', type: 'number', fb: 'maxBet' },
     { key: 'games.breakout.maxMult', label: '打砖块 · 最高倍率', type: 'number', step: '0.1' },
     { key: 'games.twentyfour.enabled', label: '24点 · 启用', type: 'bool' },
-    { key: 'games.twentyfour.minBet', label: '24点 · 押注下限（$）', type: 'number' },
-    { key: 'games.twentyfour.maxBet', label: '24点 · 押注上限（$）', type: 'number' },
+    { key: 'games.twentyfour.minBet', label: '24点 · 押注下限（$）', type: 'number', fb: 'minBet' },
+    { key: 'games.twentyfour.maxBet', label: '24点 · 押注上限（$）', type: 'number', fb: 'maxBet' },
   ]},
   { id: 'games-market', title: '模拟股市', fields: [
     { key: 'games.market.enabled', label: '模拟股市 · 启用', type: 'bool' },
@@ -227,9 +228,15 @@ function loadConfigForms() {
           </div>`;
         }
         const val = f.type === 'password' && v ? '••••••••' : (v === undefined || v === null ? '' : v);
+        // fb 字段：留空即继承全局值，placeholder 提示当前全局值
+        let ph = f.ph || '';
+        if (f.fb && (val === '' || val == null)) {
+          const fbv = getPath(config, f.fb);
+          ph = '继承全局 ' + (fbv === undefined || fbv === null ? '' : fbv);
+        }
         return `<div class="field" data-key="${f.key}" data-type="${f.type}">
           <label>${f.label}</label>
-          <input type="${f.type}" step="${f.step || ''}" placeholder="${f.ph || ''}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
+          <input type="${f.type}" step="${f.step || ''}" placeholder="${escapeAttr(String(ph))}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
         </div>`;
       }).join('') + `<div class="save-row" style="grid-column:1/-1"><button class="btn" data-save="${sec.id}">保存</button></div>`;
     });
