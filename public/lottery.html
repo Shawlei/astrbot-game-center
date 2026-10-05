@@ -365,10 +365,14 @@ function renderTicket(t) {
   if (t.result) {
     const prizeUsd = t.result.prize / quotaPerUnit;
     if (t.result.prize > 0) {
+      const TIER_CN = { 1: '一等奖', 2: '二等奖', 3: '三等奖', 4: '四等奖', 5: '五等奖', 6: '六等奖' };
       const tiers = t.result.tiers || {};
-      const tierNames = Object.keys(tiers).map((k) => '×' + k + ' 等奖').join('、');
-      const t1 = t.result.tier1Zhu > 0 ? '一等奖 ' + t.result.tier1Zhu + ' 注' : '';
-      winHtml = '<div class="t-win win">🎉 中奖 $' + prizeUsd.toFixed(2) + (t1 || tierNames ? '（' + [t1, tierNames].filter(Boolean).join('、') + '）' : '') + '</div>';
+      const parts = [];
+      if (t.result.tier1Zhu > 0) parts.push('一等奖 ' + t.result.tier1Zhu + ' 注');
+      Object.keys(tiers).sort((a, b) => a - b).forEach((k) => {
+        parts.push(TIER_CN[k] + ' ' + tiers[k] + ' 注');
+      });
+      winHtml = '<div class="t-win win">🎉 中奖 <b>$' + prizeUsd.toFixed(2) + '</b>（' + parts.join('、') + '）</div>';
     } else {
       winHtml = '<div class="t-win lose">未中奖</div>';
     }
