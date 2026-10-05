@@ -100,6 +100,8 @@ const GAME_GROUPS = [
       { key: 'games.market.sellInstant', label: '卖出即时成交（开启则卖单不冻结、按现价直接卖出）', type: 'bool' },
       { key: 'games.market.orderAutoCancel', label: '挂单超时自动撤单（未成交自动撤单解冻）', type: 'bool' },
       { key: 'games.market.orderTtlMin', label: '挂单超时分钟数（默认 10，未成交自动撤单）', type: 'number' },
+      { key: 'games.market.delistEnabled', label: '跌停退市（累计跌幅达阈值即退市、持仓归零并补新股）', type: 'bool' },
+      { key: 'games.market.delistPct', label: '退市跌幅阈值（0.70=累计跌 70% 退市）', type: 'number', step: '0.05' },
       { key: 'games.market.auctionEnabled', label: '启用集合竞价', type: 'bool' },
       { key: 'games.market.auctionStart', label: '集合竞价开始（HH:mm）', type: 'text' },
       { key: 'games.market.auctionEnd', label: '集合竞价结束/定开盘价（HH:mm）', type: 'text' },

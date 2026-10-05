@@ -278,7 +278,7 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
         <button id="btnSell" class="danger">卖出</button>
       </div>
       <div class="rules-line" style="margin-top:10px">
-        <b id="rMode">限价委托</b> · <span id="rModeDesc">买入限价 ≥ 卖一价立即成交，否则挂单待成交</span> · 涨跌停 <b id="rLimit">T+1 ±10%</b> / <b id="rLimitT0" style="color:var(--muted)">T+0 ±3%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单<span id="rOrderTtl"></span>
+        <b id="rMode">限价委托</b> · <span id="rModeDesc">买入限价 ≥ 卖一价立即成交，否则挂单待成交</span> · 涨跌停 <b id="rLimit">T+1 ±10%</b> / <b id="rLimitT0" style="color:var(--muted)">T+0 ±3%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单<span id="rOrderTtl"></span><span id="rDelist"></span>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -434,6 +434,7 @@ function onQuote(m) {
     if (!s) return;
     s.price = t.price; s.change = t.change; s.changePct = t.changePct;
     s.high = t.high; s.low = t.low; s.volume = t.volume; s.amount = t.amount;
+    if (t.fromListPct != null) s.fromListPct = t.fromListPct;
     if (t.name) s.name = t.name;
     if (t.desc != null) s.desc = t.desc;
     if (t.eps != null) s.eps = t.eps;
@@ -641,6 +642,13 @@ function applyFees() {
     const ttl = parseInt(fees.orderTtlMin, 10);
     ocEl.textContent = (fees.orderAutoCancel !== false && !isNaN(ttl) && ttl > 0)
       ? ' · 挂单 ' + ttl + ' 分钟未成交自动撤单' : '';
+  }
+  // 退市风险提示：开启时说明退市规则
+  const dEl = $('rDelist');
+  if (dEl) {
+    const dp = (fees.delistPct != null ? fees.delistPct : 0.70) * 100;
+    dEl.textContent = (fees.delistEnabled !== false)
+      ? ' · <b style="color:var(--danger, #ff5c7a)">退市规则：相对发行价累计跌 ' + dp.toFixed(0) + '% 即退市，持仓归零</b>' : '';
   }
   // 委托开关：关闭则按现价立即成交（市价单）
   applyTradingMode();
@@ -1158,9 +1166,13 @@ function renderTable() {
     const tUp = s.limitUp != null && s.price >= s.limitUp - 0.001;
     const tDown = s.limitDown != null && s.price <= s.limitDown + 0.001;
     const limitTag = tUp ? '<span class="limit-tag up">涨停</span>' : (tDown ? '<span class="limit-tag down">跌停</span>' : '');
+    // 退市风险提示：累计跌幅逼近退市阈值（默认 -70%）时标红警示
+    const delistPct100 = (fees.delistPct != null ? fees.delistPct : 0.70) * 100;
+    const delistRisk = (fees.delistEnabled !== false && s.fromListPct != null && s.fromListPct <= -delistPct100 * 0.6)
+      ? '<span class="limit-tag down" title="累计跌幅逼近退市阈值，退市后持仓归零">退市风险</span>' : '';
     tr.innerHTML =
       '<td>' + s.code + '</td>' +
-      '<td>' + escapeHtml(s.name) + (s.sector ? '<span class="sector-tag">' + escapeHtml(s.sector) + '</span>' : '') + (s.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+' + tPlusLabel() + '</span>') + limitTag + '</td>' +
+      '<td>' + escapeHtml(s.name) + (s.sector ? '<span class="sector-tag">' + escapeHtml(s.sector) + '</span>' : '') + (s.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+' + tPlusLabel() + '</span>') + limitTag + delistRisk + '</td>' +
       '<td class="num-r">' + s.price.toFixed(2) + '</td>' +
       '<td class="num-r ' + chgClass(s.change) + '">' + (s.change >= 0 ? '+' : '') + s.change.toFixed(2) + '</td>' +
       '<td class="num-r ' + chgClass(s.changePct) + '">' + fmtPct(s.changePct) + '</td>' +
