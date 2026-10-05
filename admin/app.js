@@ -115,6 +115,7 @@ const GAME_GROUPS = [
       { key: 'games.market.aiRecap', label: 'AI 收盘复盘（每日收盘后生成大盘总结）', type: 'bool' },
       { key: 'games.market.aiDragonTiger', label: 'AI 龙虎榜（标注大资金进出）', type: 'bool' },
       { key: 'games.market.aiLockDecisions', label: 'AI 封板决策（显式决定涨停/跌停封板）', type: 'bool' },
+      { key: 'games.market.aiPlayerFlow', label: 'AI 感知玩家资金面（净流入/持仓/集中度）', type: 'bool' },
     ]},
   ]},
 ];
