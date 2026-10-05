@@ -98,6 +98,8 @@ const GAME_GROUPS = [
       { key: 'games.market.tPlusDays', label: 'T+N 结算（买入后第 N 天可卖）', type: 'number' },
       { key: 'games.market.entrustEnabled', label: '委托开关（关闭则买/卖均按现价立即成交）', type: 'bool' },
       { key: 'games.market.sellInstant', label: '卖出即时成交（开启则卖单不冻结、按现价直接卖出）', type: 'bool' },
+      { key: 'games.market.orderAutoCancel', label: '挂单超时自动撤单（未成交自动撤单解冻）', type: 'bool' },
+      { key: 'games.market.orderTtlMin', label: '挂单超时分钟数（默认 10，未成交自动撤单）', type: 'number' },
       { key: 'games.market.auctionEnabled', label: '启用集合竞价', type: 'bool' },
       { key: 'games.market.auctionStart', label: '集合竞价开始（HH:mm）', type: 'text' },
       { key: 'games.market.auctionEnd', label: '集合竞价结束/定开盘价（HH:mm）', type: 'text' },

@@ -575,6 +575,8 @@ app.get('/api/market/stocks', (req, res) => {
       sessionsEnabled: TRADING.sessionsEnabled,
       entrustEnabled: TRADING.entrustEnabled,
       sellInstant: TRADING.sellInstant,
+      orderAutoCancel: TRADING.orderAutoCancel,
+      orderTtlMin: TRADING.orderTtlMin,
       auctionEnabled: TRADING.auctionEnabled,
       lunchEnabled: TRADING.lunchEnabled,
       weekendClosed: TRADING.weekendClosed,

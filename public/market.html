@@ -278,7 +278,7 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
         <button id="btnSell" class="danger">卖出</button>
       </div>
       <div class="rules-line" style="margin-top:10px">
-        <b id="rMode">限价委托</b> · <span id="rModeDesc">买入限价 ≥ 卖一价立即成交，否则挂单待成交</span> · 涨跌停 <b id="rLimit">T+1 ±10%</b> / <b id="rLimitT0" style="color:var(--muted)">T+0 ±3%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单
+        <b id="rMode">限价委托</b> · <span id="rModeDesc">买入限价 ≥ 卖一价立即成交，否则挂单待成交</span> · 涨跌停 <b id="rLimit">T+1 ±10%</b> / <b id="rLimitT0" style="color:var(--muted)">T+0 ±3%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单<span id="rOrderTtl"></span>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -635,6 +635,13 @@ function applyFees() {
   const tPlus = isNaN(tp) ? 1 : tp;
   $('rTplus').textContent = 'T+' + tPlus;
   $('rTplusDesc').textContent = tPlusDesc();
+  // 挂单超时自动撤单提示（未成交委托超时自动撤单解冻）
+  const ocEl = $('rOrderTtl');
+  if (ocEl) {
+    const ttl = parseInt(fees.orderTtlMin, 10);
+    ocEl.textContent = (fees.orderAutoCancel !== false && !isNaN(ttl) && ttl > 0)
+      ? ' · 挂单 ' + ttl + ' 分钟未成交自动撤单' : '';
+  }
   // 委托开关：关闭则按现价立即成交（市价单）
   applyTradingMode();
 }
