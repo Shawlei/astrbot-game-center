@@ -578,7 +578,7 @@ function renderSentiment() {
       '<div class="senti-gauge"><div class="senti-needle" style="left:' + (pct * 100).toFixed(1) + '%"></div></div>' +
     '</div>' +
     '<div class="senti-chips">' + chips + '</div>' +
-    '<div class="senti-narrative">' + escapeHtml(sentiment.narrative || 'AI 正在研判市场…') + '</div>' +
+    '<div class="senti-narrative">' + (sentiment.aiDriven ? 'AI 正在研判市场…详细盘面解读将在收盘后生成（避免实时剧透未来走势）' : '') + '</div>' +
     (timeStr ? '<div class="senti-time">AI 研判于 ' + timeStr + ' · 每 3 分钟刷新</div>' : '');
 }
 

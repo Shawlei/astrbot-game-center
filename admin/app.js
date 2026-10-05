@@ -121,6 +121,7 @@ const GAME_GROUPS = [
       { key: 'games.market.aiDragonTiger', label: 'AI 龙虎榜（标注大资金进出）', type: 'bool' },
       { key: 'games.market.aiLockDecisions', label: 'AI 封板决策（显式决定涨停/跌停封板）', type: 'bool' },
       { key: 'games.market.aiPlayerFlow', label: 'AI 感知玩家资金面（净流入/持仓/集中度）', type: 'bool' },
+      { key: 'games.market.aiTargetPerturb', label: 'AI 目标价执行扰动（±百分点，默认 1.5，堵明牌套利）', type: 'number', step: '0.5' },
     ]},
   ]},
 ];
