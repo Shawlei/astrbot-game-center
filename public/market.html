@@ -711,7 +711,10 @@ function drawIntraday(history, prevClose) {
   klineView = null;
   svg.onmousemove = null;
   svg.onmouseleave = null;
-  if (!history || history.length < 2) return;
+  if (!history || history.length === 0) return;
+  // 兜底：分时点过少（如收盘后重启只剩现价 1 点）时，用「昨收→现价」补足 2 点，避免图表空白
+  if (history.length < 2 && prevClose != null) history = [prevClose, history[history.length - 1]];
+  if (history.length < 2) return;
   const all = history.concat(prevClose || []);
   const min = Math.min.apply(null, all), max = Math.max.apply(null, all);
   const span = (max - min) || 1;
