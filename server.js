@@ -31,7 +31,7 @@ const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PC
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
-const market = new Market(CONFIG.portfolioFile, CONFIG.reversalsFile);
+const market = new Market(CONFIG.portfolioFile, CONFIG.reversalsFile, CONFIG.marketMetaFile);
 
 const GAME_TYPES = {
   xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ(), maxPlayers: 2 },
