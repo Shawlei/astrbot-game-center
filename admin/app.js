@@ -41,44 +41,70 @@ const CONFIG_SECTIONS = [
 
 // 游戏设置（按类分区：联机对战 / 单机小游戏 / 模拟股市）
 // fb=回退到全局字段（押注/超时未按游戏覆盖时继承全局值，输入框留空即继承）
-const GAMES_SECTIONS = [
-  { id: 'games-pvp', title: '联机对战', fields: [
-    { key: 'games.doudizhu.enabled', label: '斗地主 · 启用', type: 'bool' },
-    { key: 'games.doudizhu.minBet', label: '斗地主 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.doudizhu.maxBet', label: '斗地主 · 押注上限（$）', type: 'number', fb: 'maxBet' },
-    { key: 'games.doudizhu.turnTimeoutMs', label: '斗地主 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
-    { key: 'games.doudizhu.allowDouble', label: '斗地主 · 允许加倍阶段', type: 'bool' },
-    { key: 'games.doudizhu.allowSuperDouble', label: '斗地主 · 允许超级加倍 ×4', type: 'bool' },
-    { key: 'games.doudizhu.allowSpring', label: '斗地主 · 春天/反春翻倍', type: 'bool' },
-    { key: 'games.xiangqi.enabled', label: '象棋 · 启用', type: 'bool' },
-    { key: 'games.xiangqi.minBet', label: '象棋 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.xiangqi.maxBet', label: '象棋 · 押注上限（$）', type: 'number', fb: 'maxBet' },
-    { key: 'games.xiangqi.turnTimeoutMs', label: '象棋 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
-    { key: 'games.gomoku.enabled', label: '五子棋 · 启用', type: 'bool' },
-    { key: 'games.gomoku.minBet', label: '五子棋 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.gomoku.maxBet', label: '五子棋 · 押注上限（$）', type: 'number', fb: 'maxBet' },
-    { key: 'games.gomoku.turnTimeoutMs', label: '五子棋 · 思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
+// 游戏设置（按类分组，每个游戏一个折叠块；股市设置项最丰富）。
+// fb=回退到全局字段（押注/超时未按游戏覆盖时继承全局值，输入框留空即继承）
+const GAME_GROUPS = [
+  { cat: '⚔️ 联机对战', games: [
+    { key: 'doudizhu', name: '斗地主', icon: '🃏', fields: [
+      { key: 'games.doudizhu.enabled', label: '启用', type: 'bool' },
+      { key: 'games.doudizhu.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.doudizhu.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.doudizhu.turnTimeoutMs', label: '思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
+      { key: 'games.doudizhu.allowDouble', label: '允许加倍阶段', type: 'bool' },
+      { key: 'games.doudizhu.allowSuperDouble', label: '允许超级加倍 ×4', type: 'bool' },
+      { key: 'games.doudizhu.allowSpring', label: '春天 / 反春翻倍', type: 'bool' },
+    ]},
+    { key: 'xiangqi', name: '象棋', icon: '♟️', fields: [
+      { key: 'games.xiangqi.enabled', label: '启用', type: 'bool' },
+      { key: 'games.xiangqi.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.xiangqi.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.xiangqi.turnTimeoutMs', label: '思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
+    ]},
+    { key: 'gomoku', name: '五子棋', icon: '⚫', fields: [
+      { key: 'games.gomoku.enabled', label: '启用', type: 'bool' },
+      { key: 'games.gomoku.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.gomoku.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.gomoku.turnTimeoutMs', label: '思考超时（毫秒）', type: 'number', fb: 'turnTimeoutMs' },
+    ]},
   ]},
-  { id: 'games-solo', title: '单机小游戏', fields: [
-    { key: 'games.snake.enabled', label: '贪吃蛇 · 启用', type: 'bool' },
-    { key: 'games.snake.minBet', label: '贪吃蛇 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.snake.maxBet', label: '贪吃蛇 · 押注上限（$）', type: 'number', fb: 'maxBet' },
-    { key: 'games.snake.maxMult', label: '贪吃蛇 · 最高倍率', type: 'number', step: '0.1' },
-    { key: 'games.breakout.enabled', label: '打砖块 · 启用', type: 'bool' },
-    { key: 'games.breakout.minBet', label: '打砖块 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.breakout.maxBet', label: '打砖块 · 押注上限（$）', type: 'number', fb: 'maxBet' },
-    { key: 'games.breakout.maxMult', label: '打砖块 · 最高倍率', type: 'number', step: '0.1' },
-    { key: 'games.twentyfour.enabled', label: '24点 · 启用', type: 'bool' },
-    { key: 'games.twentyfour.minBet', label: '24点 · 押注下限（$）', type: 'number', fb: 'minBet' },
-    { key: 'games.twentyfour.maxBet', label: '24点 · 押注上限（$）', type: 'number', fb: 'maxBet' },
+  { cat: '🎰 单机小游戏', games: [
+    { key: 'snake', name: '贪吃蛇', icon: '🐍', fields: [
+      { key: 'games.snake.enabled', label: '启用', type: 'bool' },
+      { key: 'games.snake.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.snake.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.snake.maxMult', label: '最高倍率', type: 'number', step: '0.1' },
+    ]},
+    { key: 'breakout', name: '打砖块', icon: '🎮', fields: [
+      { key: 'games.breakout.enabled', label: '启用', type: 'bool' },
+      { key: 'games.breakout.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.breakout.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.breakout.maxMult', label: '最高倍率', type: 'number', step: '0.1' },
+    ]},
+    { key: 'twentyfour', name: '24点', icon: '🧮', fields: [
+      { key: 'games.twentyfour.enabled', label: '启用', type: 'bool' },
+      { key: 'games.twentyfour.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.twentyfour.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+    ]},
   ]},
-  { id: 'games-market', title: '模拟股市', fields: [
-    { key: 'games.market.enabled', label: '模拟股市 · 启用', type: 'bool' },
-    { key: 'games.market.minBuyUsd', label: '单笔最低投入（$）', type: 'number' },
-    { key: 'games.market.buyFeeRate', label: '买入手续费率（0.001=0.1%）', type: 'number', step: '0.0001' },
-    { key: 'games.market.sellFeeRate', label: '卖出手续费率', type: 'number', step: '0.0001' },
-    { key: 'games.market.limitPct', label: '涨跌停幅度（0.10=±10%）', type: 'number', step: '0.01' },
-    { key: 'games.market.t0Every', label: 'T+0 间隔（每 N 只 1 只 T+0）', type: 'number' },
+  { cat: '📈 模拟股市', games: [
+    { key: 'market', name: '虚拟股市', icon: '📈', fields: [
+      { key: 'games.market.enabled', label: '启用', type: 'bool' },
+      { key: 'games.market.minBuyUsd', label: '单笔最低投入（$）', type: 'number' },
+      { key: 'games.market.buyFeeRate', label: '买入手续费率（0.001=0.1%）', type: 'number', step: '0.0001' },
+      { key: 'games.market.sellFeeRate', label: '卖出手续费率', type: 'number', step: '0.0001' },
+      { key: 'games.market.limitPct', label: '涨跌停幅度（0.10=±10%）', type: 'number', step: '0.01' },
+      { key: 'games.market.t0Every', label: 'T+0 间隔（每 N 只 1 只 T+0）', type: 'number' },
+      { key: 'games.market.tPlusDays', label: 'T+N 结算（买入后第 N 天可卖）', type: 'number' },
+      { key: 'games.market.auctionEnabled', label: '启用集合竞价', type: 'bool' },
+      { key: 'games.market.auctionStart', label: '集合竞价开始（HH:mm）', type: 'text' },
+      { key: 'games.market.auctionEnd', label: '集合竞价结束/定开盘价（HH:mm）', type: 'text' },
+      { key: 'games.market.morningStart', label: '开盘时间（HH:mm）', type: 'text' },
+      { key: 'games.market.morningEnd', label: '早盘结束（HH:mm）', type: 'text' },
+      { key: 'games.market.lunchEnabled', label: '启用午间休市', type: 'bool' },
+      { key: 'games.market.afternoonStart', label: '午盘开始（HH:mm）', type: 'text' },
+      { key: 'games.market.afternoonEnd', label: '收盘时间（HH:mm）', type: 'text' },
+      { key: 'games.market.weekendClosed', label: '周末休市', type: 'bool' },
+    ]},
   ]},
 ];
 
@@ -212,41 +238,75 @@ function fmtUptime(s) {
 }
 
 // ---- 配置表单 ----
+// 渲染单个字段（bool / number / text / password），返回 HTML 字符串
+function renderField(f, config) {
+  const v = getPath(config, f.key);
+  if (f.type === 'bool') {
+    const checked = v === true ? ' checked' : '';
+    return `<div class="field" data-key="${f.key}" data-type="bool">
+      <label>${f.label}</label>
+      <input type="checkbox"${checked}>
+    </div>`;
+  }
+  const val = f.type === 'password' && v ? '••••••••' : (v === undefined || v === null ? '' : v);
+  // fb 字段：留空即继承全局值，placeholder 提示当前全局值
+  let ph = f.ph || '';
+  if (f.fb && (val === '' || val == null)) {
+    const fbv = getPath(config, f.fb);
+    ph = '继承全局 ' + (fbv === undefined || fbv === null ? '' : fbv);
+  }
+  return `<div class="field" data-key="${f.key}" data-type="${f.type}">
+    <label>${f.label}</label>
+    <input type="${f.type}" step="${f.step || ''}" placeholder="${escapeAttr(String(ph))}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
+  </div>`;
+}
+
 function loadConfigForms() {
   api('/api/admin/config').then(({ config }) => {
-    const sections = CONFIG_SECTIONS.concat(GAMES_SECTIONS);
-    sections.forEach((sec) => {
+    // 1) 普通配置分区（运行 / API / 新闻）
+    CONFIG_SECTIONS.forEach((sec) => {
       const box = $('form-' + sec.id);
       if (!box) return;
-      box.innerHTML = sec.fields.map((f) => {
-        const v = getPath(config, f.key);
-        if (f.type === 'bool') {
-          const checked = v === true ? ' checked' : '';
-          return `<div class="field" data-key="${f.key}" data-type="bool">
-            <label>${f.label}</label>
-            <input type="checkbox"${checked}>
-          </div>`;
-        }
-        const val = f.type === 'password' && v ? '••••••••' : (v === undefined || v === null ? '' : v);
-        // fb 字段：留空即继承全局值，placeholder 提示当前全局值
-        let ph = f.ph || '';
-        if (f.fb && (val === '' || val == null)) {
-          const fbv = getPath(config, f.fb);
-          ph = '继承全局 ' + (fbv === undefined || fbv === null ? '' : fbv);
-        }
-        return `<div class="field" data-key="${f.key}" data-type="${f.type}">
-          <label>${f.label}</label>
-          <input type="${f.type}" step="${f.step || ''}" placeholder="${escapeAttr(String(ph))}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
-        </div>`;
-      }).join('') + `<div class="save-row" style="grid-column:1/-1"><button class="btn" data-save="${sec.id}">保存</button></div>`;
+      box.innerHTML = sec.fields.map((f) => renderField(f, config)).join('') +
+        `<div class="save-row" style="grid-column:1/-1"><button class="btn" data-save="${sec.id}">保存</button></div>`;
     });
+
+    // 2) 游戏设置：按类分组，每个游戏一个折叠块
+    const gbox = $('form-games');
+    if (!gbox) return;
+    gbox.innerHTML = GAME_GROUPS.map((grp) => {
+      const gamesHtml = grp.games.map((g) => {
+        const enabled = getPath(config, 'games.' + g.key + '.enabled');
+        const on = enabled !== false;
+        const badge = `<span class="fold-badge ${on ? 'on' : 'off'}">${on ? '已启用' : '已禁用'}</span>`;
+        return `<details class="game-fold" data-game="${g.key}">
+          <summary>${g.icon} <span class="fold-name">${g.name}</span>${badge}<span class="fold-arrow">▸</span></summary>
+          <div class="form-grid">${g.fields.map((f) => renderField(f, config)).join('')}</div>
+          <div class="save-row"><button class="btn" data-save="game:${g.key}">保存${g.name}</button></div>
+        </details>`;
+      }).join('');
+      return `<div class="game-group"><div class="section-title">${grp.cat}</div>${gamesHtml}</div>`;
+    }).join('');
+
+    // 绑定保存按钮（普通分区 + 游戏折叠块）
     document.querySelectorAll('button[data-save]').forEach((b) => b.onclick = () => saveSection(b.dataset.save));
   }).catch((e) => toast(e.message, 'err'));
 }
 
-function saveSection(secId) {
-  const box = $('form-' + secId);
-  if (!box) return;
+function saveSection(target) {
+  let box;
+  let label;
+  if (target.startsWith('game:')) {
+    const key = target.slice(5);
+    box = document.querySelector('details[data-game="' + key + '"]');
+    if (!box) return;
+    const game = GAME_GROUPS.flatMap((grp) => grp.games).find((g) => g.key === key);
+    label = (game && game.name) || key;
+  } else {
+    box = $('form-' + target);
+    if (!box) return;
+    label = target;
+  }
   const patch = {};
   box.querySelectorAll('.field').forEach((field) => {
     const key = field.dataset.key;
@@ -259,13 +319,16 @@ function saveSection(secId) {
     let val = input.value;
     if (input.dataset.masked && val === '••••••••') return; // 未修改密码，跳过
     if (type === 'number') {
-      if (val === '') return; // 数字留空视为不修改
+      if (val === '') return; // 数字留空视为不修改（保留继承全局值）
       val = Number(val);
+      if (Number.isNaN(val)) return;
+    } else if (val === '') {
+      return; // 文本留空视为不修改（保留默认/全局值）
     }
     setPath(patch, key, val);
   });
   api('/api/admin/config', { method: 'POST', body: { config: patch } })
-    .then(() => toast('配置已保存，重启后生效', 'ok'))
+    .then(() => toast(label + ' 已保存，重启后生效', 'ok'))
     .catch((e) => toast(e.message, 'err'));
 }
 

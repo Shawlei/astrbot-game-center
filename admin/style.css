@@ -89,6 +89,33 @@ input:focus { outline: none; border-color: var(--accent); }
 .section-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 22px 0 10px; padding-left: 10px; border-left: 3px solid var(--accent); }
 .section-title:first-of-type { margin-top: 4px; }
 
+/* 游戏设置折叠面板 */
+.game-group { margin-bottom: 8px; }
+.game-fold {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 10px; overflow: hidden;
+}
+.game-fold summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 10px; padding: 13px 16px;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  transition: background .15s ease;
+}
+.game-fold summary::-webkit-details-marker { display: none; }
+.game-fold summary:hover { background: var(--panel-2); }
+.game-fold .fold-name { flex: 0 0 auto; }
+.game-fold .fold-arrow { margin-left: auto; color: var(--muted); font-size: 13px; transition: transform .2s ease; }
+.game-fold[open] .fold-arrow { transform: rotate(90deg); }
+.game-fold[open] summary { border-bottom: 1px solid var(--border); }
+.game-fold .form-grid { padding: 16px; }
+.game-fold .save-row { padding: 0 16px 16px; margin-top: 0; }
+.fold-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+}
+.fold-badge.on { color: var(--green); border-color: rgba(62, 207, 142, .4); background: rgba(62, 207, 142, .08); }
+.fold-badge.off { color: var(--red); border-color: rgba(224, 85, 85, .4); background: rgba(224, 85, 85, .08); }
+
 /* 按钮 */
 .btn {
   background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 600;

@@ -27,7 +27,7 @@ const solo = require('./lib/solo');
 const auth = require('./lib/auth');
 const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
-const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT } = require('./lib/market');
+const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, TRADING } = require('./lib/market');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
@@ -568,6 +568,10 @@ app.get('/api/market/stocks', (req, res) => {
     status: d.status,
     fees: {
       buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT,
+      tPlusDays: TRADING.tPlusDays,
+      auctionEnabled: TRADING.auctionEnabled,
+      lunchEnabled: TRADING.lunchEnabled,
+      weekendClosed: TRADING.weekendClosed,
       t1: true,
     },
   });
