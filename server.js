@@ -45,20 +45,14 @@ const GAME_TYPES = {
 
 // 读取某游戏的独立配置（后台「游戏设置」；未配置项回退到全局默认值）
 function gameCfg(gameType) {
-  const g = CONFIG.games && CONFIG.games[gameType];
-  if (!g) {
-    return { enabled: true, minBet: CONFIG.minBet, maxBet: CONFIG.maxBet, turnTimeoutMs: CONFIG.turnTimeoutMs };
-  }
-  return {
+  const g = (CONFIG.games && CONFIG.games[gameType]) || {};
+  // 透传游戏自定义字段（maxMult/pointOdds/allowDouble 等），押注/超时未指定时回退全局。
+  return Object.assign({}, g, {
     enabled: g.enabled !== false,
     minBet: g.minBet != null ? g.minBet : CONFIG.minBet,
     maxBet: g.maxBet != null ? g.maxBet : CONFIG.maxBet,
     turnTimeoutMs: g.turnTimeoutMs != null ? g.turnTimeoutMs : CONFIG.turnTimeoutMs,
-    maxMult: g.maxMult,
-    allowDouble: g.allowDouble,
-    allowSuperDouble: g.allowSuperDouble,
-    allowSpring: g.allowSpring,
-  };
+  });
 }
 
 // ---- 房间存储 ----
@@ -207,6 +201,7 @@ app.get('/api/games', (req, res) => {
     { type: 'snake',     name: '贪吃蛇',   url: 'snake.html',     category: 'solo' },
     { type: 'breakout',  name: '打砖块',   url: 'breakout.html',  category: 'solo' },
     { type: 'twentyfour', name: '24点',    url: 'twentyfour.html', category: 'solo' },
+    { type: 'dice',      name: '猜大小',   url: 'dice.html',      category: 'solo' },
     { type: 'market',    name: '虚拟股市', url: 'market.html',    category: 'market' },
   ];
   const list = catalog.map((g) => {
@@ -536,6 +531,64 @@ app.post('/api/solo/twentyfour/submit', async (req, res) => {
       code: 'ok', win: v.ok, bet: rb.betUsd, numbers: s.numbers, expression,
       netUsd: usd(net), quota: settle.ready() ? await settle.balance(rb.player.userId) : null,
       username: rb.player.username,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 猜大小 / 猜点数（骰子）：下注即开奖，服务端权威生成骰子并结算。
+app.post('/api/solo/dice/play', async (req, res) => {
+  try {
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期，请先在大厅登录 NewAPI 账号' });
+    const cfg = gameCfg('dice');
+    if (!cfg.enabled) return res.status(400).json({ error: '猜大小已被管理员禁用' });
+
+    const gameType = (req.body || {}).gameType === 'point' ? 'point' : 'size';
+    const betUsd = parseFloat((req.body || {}).bet);
+    if (!(betUsd >= cfg.minBet && betUsd <= cfg.maxBet)) {
+      return res.status(400).json({ error: `押注金额需在 $${cfg.minBet}~$${cfg.maxBet} 之间` });
+    }
+    const betQuota = betQuotaOf(betUsd);
+
+    // 服务端权威开奖（结果由服务端生成，防作弊）
+    const r6 = () => 1 + Math.floor(Math.random() * 6);
+    let dice, total, won, odds;
+    if (gameType === 'size') {
+      const choice = (req.body || {}).choice;
+      if (choice !== '大' && choice !== '小') return res.status(400).json({ error: '请选择「大」或「小」' });
+      dice = [r6(), r6(), r6()];
+      total = dice[0] + dice[1] + dice[2];
+      const big = total >= 11;
+      won = (choice === '大') === big;
+      odds = 1.0;
+    } else {
+      const point = parseInt((req.body || {}).choice, 10);
+      if (!(point >= 1 && point <= 6)) return res.status(400).json({ error: '点数只能是 1~6' });
+      dice = [r6()];
+      total = dice[0];
+      won = point === dice[0];
+      odds = cfg.pointOdds != null ? cfg.pointOdds : 5.0;
+    }
+
+    // 下注扣款
+    if (settle.ready() && !(await settle.debit(s.userId, betQuota))) {
+      return res.status(400).json({ error: '余额不足' });
+    }
+    let net = -betQuota;
+    if (won) {
+      const payout = Math.round(betQuota * (1 + odds));
+      if (settle.ready()) await settle.credit(s.userId, payout);
+      net = payout - betQuota;
+    }
+    stats.recordSolo(s.userId, 'dice', net);
+
+    res.json({
+      code: 'ok', gameType, dice, total, won, odds,
+      bet: betUsd, netUsd: usd(net),
+      quota: settle.ready() ? await settle.balance(s.userId) : null,
+      username: s.username,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1259,6 +1312,12 @@ setInterval(() => {
   const adminApp = createAdminApp({
     configModule: config,
     getConfig: () => CONFIG,
+    // 保存配置后热更新内存 CONFIG：押注上下限/游戏开关/思考超时等运行时项立即生效，
+    // 无需重启（market.js 等 require 时固化的 env 项除外，仍需重启）。
+    onConfigSaved: (partial) => {
+      config.applyLive(CONFIG, partial);
+      console.log('[game-center] 配置已热更新（押注/游戏开关即时生效，股市规则/端口等需重启）');
+    },
     settle, market, stats, bindings,
     bindingsFresh: () => bindings.list(),
     getRooms: () => rooms,

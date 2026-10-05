@@ -86,6 +86,12 @@ const GAME_GROUPS = [
       { key: 'games.twentyfour.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
       { key: 'games.twentyfour.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
     ]},
+    { key: 'dice', name: '猜大小', icon: '🎲', fields: [
+      { key: 'games.dice.enabled', label: '启用', type: 'bool' },
+      { key: 'games.dice.minBet', label: '押注下限（$）', type: 'number', fb: 'minBet' },
+      { key: 'games.dice.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
+      { key: 'games.dice.pointOdds', label: '猜点数赔率（默认 5，猜中返 1+5 倍）', type: 'number', step: '0.5' },
+    ]},
   ]},
   { cat: '📈 模拟股市', games: [
     { key: 'market', name: '虚拟股市', icon: '📈', fields: [
@@ -348,7 +354,10 @@ function saveSection(target) {
     setPath(patch, key, val);
   });
   api('/api/admin/config', { method: 'POST', body: { config: patch } })
-    .then(() => toast(label + ' 已保存，重启后生效', 'ok'))
+    .then((j) => {
+      toast(label + ' 已保存' + (j.liveApplied ? '（押注/开关即时生效）' : '，重启后生效'), 'ok');
+      loadConfigForms(); // 重新渲染表单，立即展示最新生效值
+    })
     .catch((e) => toast(e.message, 'err'));
 }
 
@@ -404,8 +413,8 @@ function loadHoldings(uid) {
 }
 
 function loadGameLB() {
-  const games = ['doudizhu', 'xiangqi', 'gomoku', 'snake', 'breakout', 'twentyfour'];
-  const names = { doudizhu: '斗地主', xiangqi: '象棋', gomoku: '五子棋', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点' };
+  const games = ['doudizhu', 'xiangqi', 'gomoku', 'snake', 'breakout', 'twentyfour', 'dice'];
+  const names = { doudizhu: '斗地主', xiangqi: '象棋', gomoku: '五子棋', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点', dice: '猜大小' };
   let sel = currentGameType || 'doudizhu';
   $('dataBody').innerHTML = `<div class="save-row">
     <select id="gameSel" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit">

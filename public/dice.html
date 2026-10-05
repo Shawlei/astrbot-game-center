@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>猜大小</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.tabs { display: flex; gap: 8px; margin: 4px 0 14px; }
+.tabs button { flex: 1; padding: 10px 0; font-size: 15px; font-weight: 600; border-radius: 10px; }
+.tabs button.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border-color: transparent; }
+
+.choice-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+.choice-btn {
+  flex: 1; min-width: 96px; padding: 16px 0; font-size: 18px; font-weight: 700;
+  border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); cursor: pointer;
+}
+.choice-btn.small { flex: 0 0 auto; min-width: 64px; }
+.choice-btn:hover { border-color: var(--accent); }
+.choice-btn.sel { border-color: var(--accent); background: rgba(108,124,255,.14); color: var(--text); box-shadow: 0 0 0 1px var(--accent) inset; }
+.choice-btn.big-sel { border-color: var(--red); background: rgba(224,86,92,.14); box-shadow: 0 0 0 1px var(--red) inset; }
+.choice-btn.small-sel { border-color: var(--green); background: rgba(62,207,142,.14); box-shadow: 0 0 0 1px var(--green) inset; }
+
+.dice-area { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 18px 0; min-height: 84px; }
+.die {
+  width: 74px; height: 74px; border-radius: 16px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  padding: 13px; gap: 4px;
+  transition: transform .08s ease;
+}
+.die.rolling { animation: shake .3s infinite; }
+@keyframes shake {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-6deg) scale(1.04); }
+  50% { transform: rotate(6deg) scale(1.04); }
+  75% { transform: rotate(-3deg) scale(1.02); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.die .pip { border-radius: 50%; background: transparent; }
+.die .pip.on { background: var(--gold); box-shadow: 0 0 6px rgba(240,180,41,.5); }
+
+.odds-hint { text-align: center; font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🎲 猜大小</div>
+    </div>
+    <span class="badge" id="betBadge">押注 $10~$200</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">三骰猜「大/小」1:1 返还；或猜「单骰点数」高赔率。结果由服务端权威生成，真实额度结算。</div>
+
+    <div class="tabs" id="tabs">
+      <button data-mode="size" class="active">猜大小（1:1）</button>
+      <button data-mode="point">猜点数（高赔率）</button>
+    </div>
+
+    <div class="choice-row" id="choiceRow"></div>
+    <div class="odds-hint" id="oddsHint">点数 3~10 为「小」，11~18 为「大」</div>
+
+    <div class="dice-area" id="diceArea">
+      <div class="die" id="die0"></div>
+      <div class="die" id="die1"></div>
+      <div class="die" id="die2"></div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <input id="bet" type="number" placeholder="押注美元" min="10" value="10">
+      </div>
+      <button id="btnPlay" class="primary">下注开奖</button>
+      <div class="tip">点「下注开奖」即从账户扣款，服务端立即开奖结算；猜中返还本金+奖金。</div>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">选择玩法与下注项，输入金额后开奖</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+let minBet = 10, maxBet = 200, quotaPerUnit = 500000, pointOdds = 5;
+let mode = 'size';       // 'size' | 'point'
+let choice = null;       // '大'/'小' 或 1~6
+let busy = false;
+
+const diceEls = [document.getElementById('die0'), document.getElementById('die1'), document.getElementById('die2')];
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const choiceRow = document.getElementById('choiceRow');
+const oddsHint = document.getElementById('oddsHint');
+
+// 从 /api/games 取 dice 的独立配置（回退全局）
+fetch('/api/games').then((r) => r.json()).then((j) => {
+  const g = (j.list || []).find((x) => x.type === 'dice');
+  if (!g) return;
+  minBet = g.minBet; maxBet = g.maxBet;
+  document.getElementById('betBadge').textContent = '押注 $' + minBet + '~$' + maxBet;
+  document.getElementById('bet').min = minBet;
+  document.getElementById('bet').max = maxBet;
+  document.getElementById('bet').value = minBet;
+}).catch(() => {});
+fetch('/api/health').then((r) => r.json()).then((j) => { if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit; }).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+// 骰子点阵渲染：3x3 网格，根据点数点亮 pip
+const PIP_MAP = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
+function renderDie(el, n) {
+  if (n == null) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'grid';
+  const on = PIP_MAP[n] || [];
+  el.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const p = document.createElement('div');
+    p.className = 'pip' + (on.includes(i) ? ' on' : '');
+    el.appendChild(p);
+  }
+}
+function hideDice() {
+  diceEls.forEach((el) => { el.style.display = 'none'; el.classList.remove('rolling'); });
+}
+function showDice(count) {
+  // 猜大小 3 骰、猜点数 1 骰（初始空框，开奖后填充点阵）
+  const show = mode === 'size' ? 3 : 1;
+  diceEls.forEach((el, i) => {
+    if (i < show) { el.style.display = 'grid'; el.innerHTML = ''; }
+    else { el.style.display = 'none'; }
+  });
+}
+
+// 玩法选择按钮
+document.querySelectorAll('#tabs button').forEach((b) => {
+  b.onclick = () => {
+    if (busy) return;
+    mode = b.dataset.mode;
+    document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('active', x === b));
+    choice = null;
+    renderChoices();
+    showDice();
+    hideResult();
+    if (mode === 'size') setStatus('点「大」或「小」下注');
+    else setStatus('点一个点数（1~6）下注');
+  };
+});
+
+function renderChoices() {
+  choiceRow.innerHTML = '';
+  if (mode === 'size') {
+    oddsHint.textContent = '点数 3~10 为「小」，11~18 为「大」 · 猜中返 2 倍（净赚 1 倍）';
+    [['大', 'big-sel', '🔴 大'], ['小', 'small-sel', '🟢 小']].forEach(([v, cls, label]) => {
+      const b = document.createElement('button');
+      b.className = 'choice-btn ' + cls;
+      b.textContent = label;
+      b.onclick = () => { choice = v; renderChoices(); };
+      if (choice === v) b.classList.add('sel');
+      choiceRow.appendChild(b);
+    });
+  } else {
+    oddsHint.textContent = '猜单骰点数，猜中返 ' + (1 + pointOdds) + ' 倍（净赚 ' + pointOdds + ' 倍）';
+    for (let n = 1; n <= 6; n++) {
+      const b = document.createElement('button');
+      b.className = 'choice-btn small';
+      b.textContent = '⚄ ' + n;
+      b.onclick = () => { choice = n; renderChoices(); };
+      if (choice === n) b.classList.add('sel');
+      choiceRow.appendChild(b);
+    }
+  }
+}
+
+function hideResult() { resultEl.style.display = 'none'; }
+
+// 骰子滚动动画：先随机滚动 ~700ms，再定格到服务端结果
+function playRoll(finalDice, cb) {
+  diceEls.forEach((el) => el.classList.add('rolling'));
+  const show = mode === 'size' ? 3 : 1;
+  const start = Date.now();
+  const dur = 700;
+  const timer = setInterval(() => {
+    for (let i = 0; i < show; i++) renderDie(diceEls[i], 1 + Math.floor(Math.random() * 6));
+    if (Date.now() - start >= dur) {
+      clearInterval(timer);
+      diceEls.forEach((el) => el.classList.remove('rolling'));
+      finalDice.forEach((n, i) => renderDie(diceEls[i], n));
+      cb();
+    }
+  }, 70);
+}
+
+async function play() {
+  if (busy) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  if (choice == null) { alert(mode === 'size' ? '请选择「大」或「小」' : '请选择点数 1~6'); return; }
+  const bet = parseFloat(document.getElementById('bet').value);
+  if (!(bet >= minBet && bet <= maxBet)) { alert('押注金额需在 $' + minBet + '~$' + maxBet + ' 之间'); return; }
+
+  busy = true;
+  document.getElementById('btnPlay').disabled = true;
+  hideResult();
+  setStatus('开奖中…', 'turn');
+
+  let data;
+  try {
+    const r = await fetch('/api/solo/dice/play', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, gameType: mode, choice, bet }),
+    });
+    data = await r.json();
+  } catch (e) {
+    busy = false; document.getElementById('btnPlay').disabled = false;
+    setStatus('网络错误，请稍后重试'); return;
+  }
+
+  if (data.code !== 'ok') {
+    busy = false; document.getElementById('btnPlay').disabled = false;
+    setStatus(data.error || '出错了');
+    return;
+  }
+
+  // 播放滚动动画后定格并展示结果
+  playRoll(data.dice, () => {
+    busy = false; document.getElementById('btnPlay').disabled = false;
+    resultEl.style.display = 'block';
+    let html = '';
+    const verdict = data.gameType === 'size'
+      ? (data.total >= 11 ? '大' : '小')
+      : String(data.dice[0]);
+    if (data.won) {
+      html += '<div class="big win">🎉 猜中了！</div>';
+      html += '<div>结果：' + escapeHtml(verdict) + '，本局净赚 <b style="color:var(--green)">$' + data.netUsd.toFixed(2) + '</b></div>';
+    } else {
+      html += '<div class="big lose">😢 没猜中</div>';
+      html += '<div>结果：' + escapeHtml(verdict) + '，本局 <b style="color:var(--red)">-$' + Math.abs(data.netUsd).toFixed(2) + '</b></div>';
+    }
+    if (data.quota != null) html += '<div>当前余额 <b>$' + (data.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+    resultEl.innerHTML = html;
+    setStatus('可继续下注，或切换玩法再来一局');
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+document.getElementById('btnPlay').onclick = play;
+
+// 初始化
+renderChoices();
+showDice();
+</script>
+</body>
+</html>
