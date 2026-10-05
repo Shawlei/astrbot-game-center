@@ -639,19 +639,26 @@ function applyFees() {
   applyTradingMode();
 }
 
+function buyInstantMode() { return fees.entrustEnabled === false; }
+function sellInstantMode() { return fees.entrustEnabled === false || fees.sellInstant === true; }
+
 function applyTradingMode() {
-  const instant = fees.entrustEnabled === false;
+  const bi = buyInstantMode(), si = sellInstantMode();
   const buyP = $('buyPrice'), sellP = $('sellPrice');
-  if (instant) {
-    buyP.style.display = 'none';
-    sellP.style.display = 'none';
-    buyP.disabled = true; sellP.disabled = true;
+  buyP.style.display = bi ? 'none' : '';
+  buyP.disabled = bi;
+  sellP.style.display = si ? 'none' : '';
+  sellP.disabled = si;
+  if (bi && si) {
     $('rMode').textContent = '市价成交';
     $('rModeDesc').textContent = '按现价立即成交，无需等待撮合';
+  } else if (!bi && si) {
+    $('rMode').textContent = '买限价 / 卖市价';
+    $('rModeDesc').textContent = '买入挂单撮合；卖出按现价立即成交，不冻结';
+  } else if (bi && !si) {
+    $('rMode').textContent = '买市价 / 卖限价';
+    $('rModeDesc').textContent = '买入按现价立即成交；卖出挂单撮合';
   } else {
-    buyP.style.display = '';
-    sellP.style.display = '';
-    buyP.disabled = false; sellP.disabled = false;
     $('rMode').textContent = '限价委托';
     $('rModeDesc').textContent = '买入限价 ≥ 卖一价立即成交，否则挂单待成交';
   }
@@ -665,7 +672,7 @@ function updateBuyHint() {
   if (!GCAuth.isLoggedIn()) { el.textContent = '登录后显示可买数量'; return; }
   const s = selected ? stocksMap[selected] : null;
   const bf = fees.buyFeeRate || 0.001;
-  const instant = fees.entrustEnabled === false;
+  const instant = buyInstantMode();
   const price = instant ? (s ? s.price : 0) : parseFloat($('buyPrice').value);
   const qty = parseFloat($('buyQty').value);
   let html = '可用余额 <b>$' + balUsd.toFixed(2) + '</b>';
@@ -1047,9 +1054,8 @@ function selectStock(code) {
   // 默认委托价：买=卖一（现价+1 tick）、卖=买一（现价-1 tick），用户可自行修改；市价模式下用现价
   const s = stocksMap[code];
   if (s) {
-    const instant = fees.entrustEnabled === false;
-    $('buyPrice').value = (instant ? s.price : round2(s.price + 0.01)).toFixed(2);
-    $('sellPrice').value = (instant ? s.price : round2(s.price - 0.01)).toFixed(2);
+    $('buyPrice').value = (buyInstantMode() ? s.price : round2(s.price + 0.01)).toFixed(2);
+    $('sellPrice').value = (sellInstantMode() ? s.price : round2(s.price - 0.01)).toFixed(2);
   }
   paintDetail(code);
   loadOrderbook(code);
@@ -1164,7 +1170,7 @@ async function placeOrder(side) {
   if (!token) { alert('请先登录 NewAPI 账号'); return; }
   if (!selected) { alert('请先选择一只股票'); return; }
   const s = stocksMap[selected];
-  const instant = fees.entrustEnabled === false;
+  const instant = side === 'buy' ? buyInstantMode() : sellInstantMode();
   const price = instant ? s.price : parseFloat(side === 'buy' ? $('buyPrice').value : $('sellPrice').value);
   const qty = parseFloat(side === 'buy' ? $('buyQty').value : $('sellQty').value);
   if (!(price > 0)) { alert('请输入委托价格'); return; }
