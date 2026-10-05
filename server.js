@@ -27,7 +27,7 @@ const solo = require('./lib/solo');
 const auth = require('./lib/auth');
 const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
-const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS, AI_PLAYER_FLOW, DELIST_ENABLED, DELIST_PCT } = require('./lib/market');
+const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS, AI_PLAYER_FLOW, DELIST_ENABLED, DELIST_PCT, MM_MAX_USD } = require('./lib/market');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
@@ -589,6 +589,7 @@ app.get('/api/market/stocks', (req, res) => {
       aiPlayerFlow: AI_PLAYER_FLOW,
       delistEnabled: DELIST_ENABLED,
       delistPct: DELIST_PCT,
+      mmMaxUsd: MM_MAX_USD,
       t1: true,
     },
   });
