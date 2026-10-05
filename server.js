@@ -27,7 +27,7 @@ const solo = require('./lib/solo');
 const auth = require('./lib/auth');
 const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
-const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN } = require('./lib/market');
+const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS } = require('./lib/market');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
@@ -567,6 +567,8 @@ app.get('/api/market/stocks', (req, res) => {
     minBuyUsd: MIN_BUY_USD,
     status: d.status,
     sentiment: d.sentiment,
+    dragonTiger: d.dragonTiger,
+    recap: d.recap,
     fees: {
       buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT, t0LimitPct: T0_LIMIT_PCT,
       tPlusDays: TRADING.tPlusDays,
@@ -576,6 +578,11 @@ app.get('/api/market/stocks', (req, res) => {
       lunchEnabled: TRADING.lunchEnabled,
       weekendClosed: TRADING.weekendClosed,
       aiDriven: AI_DRIVEN,
+      aiProfiles: AI_PROFILES,
+      aiEarnings: AI_EARNINGS,
+      aiRecap: AI_RECAP,
+      aiDragonTiger: AI_DRAGON_TIGER,
+      aiLockDecisions: AI_LOCK_DECISIONS,
       t1: true,
     },
   });
@@ -1060,6 +1067,8 @@ market.setHandlers({
   onTrade: safeBroadcast((t) => broadcastMarket({ type: 'trade', side: t.type, id: t.id, time: t.time, username: t.username, code: t.code, name: t.name, price: t.price, amount: t.amount, shares: t.shares })),
   onNews: safeBroadcast((n) => broadcastMarket({ type: 'news', ...n })),
   onSentiment: safeBroadcast((s) => broadcastMarket({ type: 'sentiment', ...s })),
+  onRecap: safeBroadcast((r) => broadcastMarket({ type: 'recap', ...r })),
+  onDragonTiger: safeBroadcast((l) => broadcastMarket({ type: 'dragonTiger', list: l })),
 });
 
 marketWss.on('connection', (ws) => {

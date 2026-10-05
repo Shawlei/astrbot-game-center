@@ -110,6 +110,11 @@ const GAME_GROUPS = [
       { key: 'games.market.dayBoundary', label: '哪天算过一天（HH:mm，默认 00:00）', type: 'text' },
       { key: 'games.market.aiDriven', label: 'AI 全驱动（涨跌停/新闻/舆论/影响全由 AI 决定）', type: 'bool' },
       { key: 'games.market.aiEconomyIntervalMin', label: 'AI 决策周期（分钟，默认 3）', type: 'number' },
+      { key: 'games.market.aiProfiles', label: 'AI 公司人设（生成公司名+主营业务）', type: 'bool' },
+      { key: 'games.market.aiEarnings', label: 'AI 财报（改写 EPS/净资产，PE/PB 随之变动）', type: 'bool' },
+      { key: 'games.market.aiRecap', label: 'AI 收盘复盘（每日收盘后生成大盘总结）', type: 'bool' },
+      { key: 'games.market.aiDragonTiger', label: 'AI 龙虎榜（标注大资金进出）', type: 'bool' },
+      { key: 'games.market.aiLockDecisions', label: 'AI 封板决策（显式决定涨停/跌停封板）', type: 'bool' },
     ]},
   ]},
 ];

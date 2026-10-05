@@ -105,6 +105,23 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
 .senti-chip.flat { background: rgba(139,144,168,.12); color: var(--muted); border: 1px solid rgba(139,144,168,.25); }
 .senti-narrative { font-size: 13px; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
 .senti-time { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+/* 公司主营 / 财报基本面 */
+.stock-desc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.fund-row { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.fund-row b { color: var(--text); font-weight: 600; }
+
+/* 龙虎榜 */
+.dt-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.dt-row:last-child { border-bottom: none; }
+.dt-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px; flex-shrink: 0; }
+.dt-tag.buy { background: rgba(224,86,92,.14); color: var(--red); }
+.dt-tag.sell { background: rgba(62,207,142,.14); color: var(--green); }
+.dt-name { font-weight: 600; color: var(--text); }
+.dt-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+.dt-amt.buy { color: var(--red); }
+.dt-amt.sell { color: var(--green); }
+.dt-reason { font-size: 12px; color: var(--muted); }
 .rules-line { font-size: 12px; color: var(--muted); line-height: 1.7; }
 .rules-line b { color: var(--text); }
 
@@ -158,6 +175,18 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
   <div class="card" id="sentimentCard" style="display:none">
     <div class="section-title" style="margin-top:0">🧠 市场舆论 <span style="font-size:12px;color:var(--muted);font-weight:400">AI 全驱动 · 情绪与盘面解读</span></div>
     <div id="sentimentBody"><div class="empty">AI 正在研判市场…</div></div>
+  </div>
+
+  <!-- AI 收盘复盘 -->
+  <div class="card" id="recapCard" style="display:none">
+    <div class="section-title" style="margin-top:0">🌙 收盘复盘 <span style="font-size:12px;color:var(--muted);font-weight:400">AI 每日盘后总结</span></div>
+    <div id="recapBody"><div class="empty">收盘后 AI 将生成当日复盘…</div></div>
+  </div>
+
+  <!-- AI 龙虎榜 -->
+  <div class="card" id="dragonTigerCard" style="display:none">
+    <div class="section-title" style="margin-top:0">🐲 龙虎榜 <span style="font-size:12px;color:var(--muted);font-weight:400">AI 标注大资金动向</span></div>
+    <div id="dragonTigerBody"><div class="empty">AI 正在研判资金流向…</div></div>
   </div>
 
   <!-- 新闻全文弹窗 -->
@@ -224,9 +253,12 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
       <div class="orderbook" id="orderbook"></div>
 
       <div class="fund-title">📊 基本面 · 资金流向</div>
+      <div class="stock-desc" id="fDesc" style="display:none"></div>
       <div class="fund-grid">
         <div class="cell"><div class="k">市盈率 PE</div><div class="v" id="fPe">--</div></div>
         <div class="cell"><div class="k">市净率 PB</div><div class="v" id="fPb">--</div></div>
+        <div class="cell"><div class="k">每股收益 EPS</div><div class="v" id="fEps">--</div></div>
+        <div class="cell"><div class="k">每股净资产 BVPS</div><div class="v" id="fBvps">--</div></div>
         <div class="cell"><div class="k">总市值</div><div class="v" id="fCap">--</div></div>
         <div class="cell"><div class="k">流通市值</div><div class="v" id="fFloatCap">--</div></div>
         <div class="cell"><div class="k">换手率</div><div class="v" id="fTurn">--</div></div>
@@ -313,6 +345,8 @@ let ws = null;
 let wsConnected = false;
 let marketStatus = null;
 let sentiment = null; // AI 全驱动：{ aiDriven, overall, sectors, narrative, at }
+let dragonTiger = []; // AI 龙虎榜
+let recap = null;     // AI 收盘复盘 { narrative, at }
 
 const $ = (id) => document.getElementById(id);
 
@@ -384,6 +418,8 @@ function connectWS() {
     else if (m.type === 'trade') onTrade(m);
     else if (m.type === 'news') onNews(m);
     else if (m.type === 'sentiment') onSentiment(m);
+    else if (m.type === 'recap') onRecap(m);
+    else if (m.type === 'dragonTiger') onDragonTiger(m);
   };
   ws.onclose = () => { wsConnected = false; setConn(false, '重连中…'); setTimeout(connectWS, 3000); };
   ws.onerror = () => {};
@@ -398,6 +434,10 @@ function onQuote(m) {
     if (!s) return;
     s.price = t.price; s.change = t.change; s.changePct = t.changePct;
     s.high = t.high; s.low = t.low; s.volume = t.volume; s.amount = t.amount;
+    if (t.name) s.name = t.name;
+    if (t.desc != null) s.desc = t.desc;
+    if (t.eps != null) s.eps = t.eps;
+    if (t.bvps != null) s.bvps = t.bvps;
     if (s.history && (s.history.length === 0 || Math.abs(s.history[s.history.length - 1] - t.price) > 1e-9)) {
       s.history.push(t.price);
       if (s.history.length > 480) s.history.shift();
@@ -539,6 +579,47 @@ function renderSentiment() {
     '<div class="senti-chips">' + chips + '</div>' +
     '<div class="senti-narrative">' + escapeHtml(sentiment.narrative || 'AI 正在研判市场…') + '</div>' +
     (timeStr ? '<div class="senti-time">AI 研判于 ' + timeStr + ' · 每 3 分钟刷新</div>' : '');
+}
+
+// ---- AI 收盘复盘 ----
+function onRecap(r) {
+  recap = r;
+  renderRecap();
+}
+function renderRecap() {
+  const card = $('recapCard');
+  const body = $('recapBody');
+  if (!card) return;
+  const active = recap && recap.narrative;
+  card.style.display = active ? '' : 'none';
+  if (!active) return;
+  const timeStr = recap.at ? new Date(recap.at).toTimeString().slice(0, 5) : '';
+  body.innerHTML = '<div class="senti-narrative">' + escapeHtml(recap.narrative) + '</div>' +
+    (timeStr ? '<div class="senti-time">' + timeStr + ' 收盘</div>' : '');
+}
+
+// ---- AI 龙虎榜 ----
+function onDragonTiger(m) {
+  dragonTiger = m.list || [];
+  renderDragonTiger();
+}
+function renderDragonTiger() {
+  const card = $('dragonTigerCard');
+  const body = $('dragonTigerBody');
+  if (!card) return;
+  const active = dragonTiger && dragonTiger.length;
+  card.style.display = active ? '' : 'none';
+  if (!active) return;
+  body.innerHTML = dragonTiger.map((r) => {
+    const dir = r.direction === 'sell' ? 'sell' : 'buy';
+    const tag = dir === 'buy' ? '买入' : '卖出';
+    return '<div class="dt-row">' +
+      '<span class="dt-tag ' + dir + '">' + tag + '</span>' +
+      '<span class="dt-name">' + escapeHtml(r.name || r.code) + '</span>' +
+      '<span class="dt-reason">' + escapeHtml(r.reason || '') + '</span>' +
+      '<span class="dt-amt ' + dir + '">' + (dir === 'buy' ? '+' : '-') + (r.amount || 0).toFixed(1) + ' 亿</span>' +
+    '</div>';
+  }).join('');
 }
 // 点击遮罩空白处关闭弹窗
 $('newsModal').addEventListener('click', (e) => { if (e.target === $('newsModal')) closeNews(); });
@@ -947,6 +1028,12 @@ function renderFundamentals(s) {
   const turnover = s.floatShares ? s.volume * 100 / s.floatShares * 100 : null;
   $('fPe').textContent = pe != null ? pe.toFixed(2) : '--';
   $('fPb').textContent = pb != null ? pb.toFixed(2) : '--';
+  $('fEps').textContent = s.eps != null ? s.eps.toFixed(3) : '--';
+  $('fBvps').textContent = s.bvps != null ? s.bvps.toFixed(2) : '--';
+  // 公司主营业务（AI 人设生成后显示）
+  const descEl = $('fDesc');
+  if (s.desc) { descEl.textContent = s.desc; descEl.style.display = ''; }
+  else { descEl.style.display = 'none'; }
   $('fCap').textContent = totalCap != null ? fmtAmt(totalCap) : '--';
   $('fFloatCap').textContent = floatCap != null ? fmtAmt(floatCap) : '--';
   $('fTurn').textContent = turnover != null ? turnover.toFixed(2) + '%' : '--';
@@ -1031,6 +1118,8 @@ async function loadStocks() {
     if (j.news && j.news.length) { newsList = j.news.slice(0, 30); renderNews(); }
     if (j.newsTtlHours) { newsTtlHours = j.newsTtlHours; $('newsTtl').textContent = newsTtlHours; }
     if (j.sentiment) { onSentiment(j.sentiment); }
+    if (j.dragonTiger) { onDragonTiger({ list: j.dragonTiger }); }
+    if (j.recap) { onRecap(j.recap); }
     if (j.status) applyStatus(j.status);
     indexInfo = j.index; breadth = j.breadth || { up: 0, down: 0, flat: 0 };
     stocksMap = {};
