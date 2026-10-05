@@ -17,9 +17,9 @@
 }
 .choice-btn.small { flex: 0 0 auto; min-width: 64px; }
 .choice-btn:hover { border-color: var(--accent); }
-.choice-btn.sel { border-color: var(--accent); background: rgba(108,124,255,.14); color: var(--text); box-shadow: 0 0 0 1px var(--accent) inset; }
-.choice-btn.big-sel { border-color: var(--red); background: rgba(224,86,92,.14); box-shadow: 0 0 0 1px var(--red) inset; }
-.choice-btn.small-sel { border-color: var(--green); background: rgba(62,207,142,.14); box-shadow: 0 0 0 1px var(--green) inset; }
+.choice-btn.sel { border-color: var(--accent); background: rgba(108,124,255,.16); color: var(--text); box-shadow: 0 0 0 2px var(--accent) inset; transform: translateY(-2px); }
+.choice-btn.sel-big { border-color: var(--red); background: rgba(224,86,92,.18); color: #fff; box-shadow: 0 0 0 2px var(--red) inset; transform: translateY(-2px); }
+.choice-btn.sel-small { border-color: var(--green); background: rgba(62,207,142,.18); color: #fff; box-shadow: 0 0 0 2px var(--green) inset; transform: translateY(-2px); }
 
 .dice-area { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 18px 0; min-height: 84px; }
 .die {
@@ -167,12 +167,12 @@ function renderChoices() {
   choiceRow.innerHTML = '';
   if (mode === 'size') {
     oddsHint.textContent = '点数 3~10 为「小」，11~18 为「大」 · 猜中返 2 倍（净赚 1 倍）';
-    [['大', 'big-sel', '🔴 大'], ['小', 'small-sel', '🟢 小']].forEach(([v, cls, label]) => {
+    [['大', 'sel-big', '🔴 大'], ['小', 'sel-small', '🟢 小']].forEach(([v, selCls, label]) => {
       const b = document.createElement('button');
-      b.className = 'choice-btn ' + cls;
+      b.className = 'choice-btn';
       b.textContent = label;
       b.onclick = () => { choice = v; renderChoices(); };
-      if (choice === v) b.classList.add('sel');
+      if (choice === v) b.classList.add(selCls);
       choiceRow.appendChild(b);
     });
   } else {

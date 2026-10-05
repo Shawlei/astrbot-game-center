@@ -316,6 +316,7 @@ app.post('/api/room/:id/join', async (req, res) => {
       room.tokens[seat] = '';
       return res.status(400).json({ error: '余额不足，无法开战（每位玩家需 $' + room.bet + '）' });
     }
+    console.log(`[game-center] 开战扣款 ${room.gameType} 房间=${room.id} 底注=$${room.bet} (betQuota=${room.betQuota}) uids=${uids.join(',')}`);
   }
 
   room.game = GAME_TYPES[room.gameType].create(gameCfg(room.gameType));
@@ -967,6 +968,7 @@ async function finishDoudizhu(room) {
     );
     settled = r.ok;
     degraded = r.degraded;
+    console.log(`[game-center] 斗地主结算 房间=${room.id} 地主胜=${landlordWon} 倍数=${multiplier} 底注=$${room.bet}(betQuota=${room.betQuota}) settled=${settled}${degraded ? ' degraded(降级退本金)' : ''}`);
   }
   room.settled = settled;
   room.settledDegraded = degraded;
