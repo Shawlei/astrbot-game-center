@@ -1048,7 +1048,8 @@ function renderFundamentals(s) {
   const totalCap = s.totalShares ? s.price * s.totalShares : null;
   const floatCap = s.floatShares ? s.price * s.floatShares : null;
   const turnover = s.floatShares ? s.volume * 100 / s.floatShares * 100 : null;
-  $('fPe').textContent = pe != null ? pe.toFixed(2) : '--';
+  const sectorPe = s.sectorPe || null;
+  $('fPe').textContent = pe != null ? (pe.toFixed(2) + (sectorPe ? ' / 板块基准 ' + sectorPe : '')) : '--';
   $('fPb').textContent = pb != null ? pb.toFixed(2) : '--';
   $('fEps').textContent = s.eps != null ? s.eps.toFixed(3) : '--';
   $('fBvps').textContent = s.bvps != null ? s.bvps.toFixed(2) : '--';
