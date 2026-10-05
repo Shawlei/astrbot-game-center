@@ -28,10 +28,16 @@ const auth = require('./lib/auth');
 const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
 const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS, AI_PLAYER_FLOW, DELIST_ENABLED, DELIST_PCT, MM_MAX_USD } = require('./lib/market');
+const { Lottery } = require('./lib/lottery');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
 const market = new Market(CONFIG.portfolioFile, CONFIG.reversalsFile, CONFIG.marketMetaFile);
+const lottery = new Lottery(CONFIG.lotteryFile, {
+  getQuotaPerUnit: () => CONFIG.quotaPerUnit,
+  getCfg: () => (CONFIG.games && CONFIG.games.lottery) || {},
+  settle, stats, bindings,
+});
 
 const GAME_TYPES = {
   xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ(), maxPlayers: 2 },
@@ -202,6 +208,7 @@ app.get('/api/games', (req, res) => {
     { type: 'breakout',  name: '打砖块',   url: 'breakout.html',  category: 'solo' },
     { type: 'twentyfour', name: '24点',    url: 'twentyfour.html', category: 'solo' },
     { type: 'dice',      name: '猜大小',   url: 'dice.html',      category: 'solo' },
+    { type: 'lottery',   name: '双色球',   url: 'lottery.html',   category: 'solo' },
     { type: 'market',    name: '虚拟股市', url: 'market.html',    category: 'market' },
   ];
   const list = catalog.map((g) => {
@@ -591,6 +598,48 @@ app.post('/api/solo/dice/play', async (req, res) => {
       quota: settle.ready() ? await settle.balance(s.userId) : null,
       username: s.username,
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- 双色球彩票 ----
+
+// 彩票信息：当前期/奖池/开奖时间/奖级表/最近一期开奖
+app.get('/api/lottery/info', (req, res) => {
+  res.json(lottery.info());
+});
+
+// 最近开奖历史
+app.get('/api/lottery/history', (req, res) => {
+  res.json({ list: lottery.history(req.query.limit) });
+});
+
+// 我的彩票（当前期）
+app.get('/api/lottery/my', (req, res) => {
+  const s = auth.resolve(req.query.token);
+  if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
+  res.json({ list: lottery.myTickets(s.userId) });
+});
+
+// 购票：自选/机选/复式/多倍，入场扣款（余额不足拒绝）
+app.post('/api/lottery/buy', async (req, res) => {
+  try {
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期，请先在大厅登录 NewAPI 账号' });
+    const { red, blue, mult, auto } = req.body || {};
+    let sel = { red: Array.isArray(red) ? red : [], blue: Array.isArray(blue) ? blue : [] };
+    const m = parseInt(mult, 10) || 1;
+    // 机选：服务端生成 6 红 + 1 蓝
+    if (auto) {
+      const rs = new Set();
+      while (rs.size < 6) rs.add(1 + Math.floor(Math.random() * 33));
+      sel = { red: Array.from(rs).sort((a, b) => a - b), blue: [1 + Math.floor(Math.random() * 16)] };
+    }
+    const r = await lottery.buy(s.userId, s.username, sel, m);
+    if (r.error) return res.status(400).json({ error: r.error });
+    const quota = settle.ready() ? await settle.balance(s.userId) : null;
+    res.json({ code: 'ok', ...r, quota });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1290,6 +1339,9 @@ setInterval(() => {
   }
 }, 1000).unref();
 
+// ---- 彩票：到点开奖 / 换期 / 补开漏开（5s 粒度，保证每天 20:00 准点开奖） ----
+setInterval(() => { lottery.tick(); }, 5000).unref();
+
 // ---- 启动 ----
 (async () => {
   await settle.init(CONFIG.mysql);
@@ -1303,6 +1355,8 @@ setInterval(() => {
     console.log(`[game-center] newapiBase=${CONFIG.newapiBase}`);
   }
   console.log(`[game-center] aiNews=${aiNews.ready() ? CONFIG.aiModel : 'DISABLED (no NEWAPI_KEY)'}`);
+  // 彩票：启动即建期/补开漏开的上一期（保证重启后 info 立即可用且不丢开奖）
+  lottery.tick().catch(() => {});
   server.listen(CONFIG.port, () => {
     console.log(`[game-center] listening on :${CONFIG.port}`);
     console.log(`[game-center] mysql ${settle.ready() ? 'connected' : 'NOT configured'}`);
@@ -1320,7 +1374,7 @@ setInterval(() => {
       config.applyLive(CONFIG, partial);
       console.log('[game-center] 配置已热更新（押注/游戏开关即时生效，股市规则/端口等需重启）');
     },
-    settle, market, stats, bindings,
+    settle, market, stats, bindings, lottery,
     bindingsFresh: () => bindings.list(),
     getRooms: () => rooms,
     getSoloSessions: () => soloSessions,
