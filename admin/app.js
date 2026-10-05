@@ -32,8 +32,9 @@ const CONFIG_SECTIONS = [
     { key: 'mysql.database', label: 'MySQL 库名', type: 'text' },
   ]},
   { id: 'news', title: '新闻设置', fields: [
-    { key: 'news.dailyMin', label: '每日最少新闻数', type: 'number' },
-    { key: 'news.dailyMax', label: '每日最多新闻数', type: 'number' },
+    { key: 'news.minGapMin', label: '新闻最小间隔（分钟，默认 2）', type: 'number' },
+    { key: 'news.maxGapMin', label: '新闻最大间隔（分钟，默认 90，时密时疏）', type: 'number' },
+    { key: 'news.neutralRate', label: '中性新闻概率（0~1，默认 0.25，只发文字不推股价）', type: 'number', step: '0.05' },
     { key: 'news.ttlHours', label: '新闻时效（小时）', type: 'number' },
     { key: 'adminPassword', label: '管理员密码', type: 'password', ph: '修改后需重新登录' },
   ]},
