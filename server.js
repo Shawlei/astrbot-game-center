@@ -569,6 +569,7 @@ app.get('/api/market/stocks', (req, res) => {
     fees: {
       buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT,
       tPlusDays: TRADING.tPlusDays,
+      sessionsEnabled: TRADING.sessionsEnabled,
       auctionEnabled: TRADING.auctionEnabled,
       lunchEnabled: TRADING.lunchEnabled,
       weekendClosed: TRADING.weekendClosed,

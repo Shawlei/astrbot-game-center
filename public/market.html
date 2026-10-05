@@ -221,7 +221,7 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
         <button id="btnSell" class="danger">卖出</button>
       </div>
       <div class="rules-line" style="margin-top:10px">
-        <b>限价委托</b> · 买入限价 ≥ 卖一价立即成交，否则挂单待成交 · 涨跌停 <b id="rLimit">±10%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b>T+1</b> 次日可卖 · 未成交委托可随时撤单
+        <b>限价委托</b> · 买入限价 ≥ 卖一价立即成交，否则挂单待成交 · 涨跌停 <b id="rLimit">±10%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -306,6 +306,8 @@ function fmtAmt(n) {
   return sign + a.toFixed(0);
 }
 function chgClass(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : 'flat'); }
+function tPlusLabel() { const tp = parseInt((fees && fees.tPlusDays) || 1, 10); return isNaN(tp) ? 1 : Math.max(0, tp); }
+function tPlusDesc() { const tp = tPlusLabel(); return tp <= 0 ? '当日可卖' : (tp === 1 ? '次日可卖' : ('第' + tp + '天可卖')); }
 function setStatus(t, cls) { $('status').textContent = t; $('status').className = 'status' + (cls ? ' ' + cls : ''); }
 function hhmmss() { const d = new Date(); return d.toTimeString().slice(0, 8); }
 function fmtTime(ts) { if (!ts) return hhmmss(); return new Date(ts).toTimeString().slice(0, 8); }
@@ -474,6 +476,10 @@ function applyFees() {
   $('rLimit').textContent = '±' + (fees.limitPct * 100).toFixed(0) + '%';
   $('rBuyFee').textContent = (fees.buyFeeRate * 100).toFixed(1) + '%';
   $('rSellFee').textContent = (fees.sellFeeRate * 100).toFixed(1) + '%';
+  const tp = parseInt(fees.tPlusDays, 10);
+  const tPlus = isNaN(tp) ? 1 : tp;
+  $('rTplus').textContent = 'T+' + tPlus;
+  $('rTplusDesc').textContent = tPlusDesc();
 }
 
 // ---- 分时图 ----
@@ -793,7 +799,7 @@ function paintDetail(code) {
   $('dName').textContent = s.name;
   $('dCode').textContent = s.code;
   $('dSector').textContent = s.sector || '';
-  $('dT').textContent = s.t0 ? 'T+0 当日可买卖' : 'T+1 次日可卖';
+  $('dT').textContent = s.t0 ? 'T+0 当日可买卖' : ('T+' + tPlusLabel() + ' ' + tPlusDesc());
   $('dT').className = s.t0 ? 't0-tag' : 't1-tag';
   const atLimitUp = s.limitUp != null && s.price >= s.limitUp - 0.001;
   const atLimitDown = s.limitDown != null && s.price <= s.limitDown + 0.001;
@@ -931,7 +937,7 @@ function renderTable() {
     const limitTag = tUp ? '<span class="limit-tag up">涨停</span>' : (tDown ? '<span class="limit-tag down">跌停</span>' : '');
     tr.innerHTML =
       '<td>' + s.code + '</td>' +
-      '<td>' + escapeHtml(s.name) + (s.sector ? '<span class="sector-tag">' + escapeHtml(s.sector) + '</span>' : '') + (s.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+1</span>') + limitTag + '</td>' +
+      '<td>' + escapeHtml(s.name) + (s.sector ? '<span class="sector-tag">' + escapeHtml(s.sector) + '</span>' : '') + (s.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+' + tPlusLabel() + '</span>') + limitTag + '</td>' +
       '<td class="num-r">' + s.price.toFixed(2) + '</td>' +
       '<td class="num-r ' + chgClass(s.change) + '">' + (s.change >= 0 ? '+' : '') + s.change.toFixed(2) + '</td>' +
       '<td class="num-r ' + chgClass(s.changePct) + '">' + fmtPct(s.changePct) + '</td>' +
@@ -1052,8 +1058,8 @@ async function loadHoldings() {
       const div = document.createElement('div');
       div.className = 'hold-item';
       const pnlCls = chgClass(h.pnl);
-      const lockedTxt = h.locked > 0 ? (' · <span style="color:var(--muted)">T+1锁定 ' + h.locked.toFixed(2) + '</span>') : '';
-      const t0Tag = h.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+1</span>';
+      const lockedTxt = h.locked > 0 ? (' · <span style="color:var(--muted)">T+' + tPlusLabel() + '锁定 ' + h.locked.toFixed(2) + '</span>') : '';
+      const t0Tag = h.t0 ? '<span class="t0-tag">T+0</span>' : '<span class="t1-tag">T+' + tPlusLabel() + '</span>';
       div.innerHTML =
         '<span class="nm">' + escapeHtml(h.name) + '</span>' + t0Tag +
         '<span class="cd">' + h.code + '</span>' +

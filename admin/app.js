@@ -104,6 +104,8 @@ const GAME_GROUPS = [
       { key: 'games.market.afternoonStart', label: '午盘开始（HH:mm）', type: 'text' },
       { key: 'games.market.afternoonEnd', label: '收盘时间（HH:mm）', type: 'text' },
       { key: 'games.market.weekendClosed', label: '周末休市', type: 'bool' },
+      { key: 'games.market.sessionsEnabled', label: '交易时段开关（关闭则全天候可交易）', type: 'bool' },
+      { key: 'games.market.dayBoundary', label: '哪天算过一天（HH:mm，默认 00:00）', type: 'text' },
     ]},
   ]},
 ];
