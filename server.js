@@ -27,7 +27,7 @@ const solo = require('./lib/solo');
 const auth = require('./lib/auth');
 const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
-const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, TRADING } = require('./lib/market');
+const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING } = require('./lib/market');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
@@ -567,9 +567,10 @@ app.get('/api/market/stocks', (req, res) => {
     minBuyUsd: MIN_BUY_USD,
     status: d.status,
     fees: {
-      buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT,
+      buyFeeRate: BUY_FEE_RATE, sellFeeRate: SELL_FEE_RATE, limitPct: LIMIT_PCT, t0LimitPct: T0_LIMIT_PCT,
       tPlusDays: TRADING.tPlusDays,
       sessionsEnabled: TRADING.sessionsEnabled,
+      entrustEnabled: TRADING.entrustEnabled,
       auctionEnabled: TRADING.auctionEnabled,
       lunchEnabled: TRADING.lunchEnabled,
       weekendClosed: TRADING.weekendClosed,
@@ -598,10 +599,17 @@ app.post('/api/market/order', async (req, res) => {
     const { code, side, price, qty } = req.body || {};
     let frozenQuota = 0;
     if (side !== 'sell') {
-      // 买入：冻结 委托价×股数×(1+手续费) 的额度上限
-      const p = round2(parseFloat(price));
+      // 买入：冻结 价格×股数×(1+手续费) 的额度上限；委托开关关闭时按现价冻结（市价单）
       const q = parseFloat(qty);
-      if (!(p > 0) || !(q > 0)) return res.status(400).json({ error: '委托价格/数量无效' });
+      if (!(q > 0)) return res.status(400).json({ error: '委托数量无效' });
+      let p = round2(parseFloat(price));
+      if (!TRADING.entrustEnabled) {
+        const cp = market.currentPrice(code);
+        if (!cp) return res.status(400).json({ error: '股票不存在' });
+        p = cp;
+      } else if (!(p > 0)) {
+        return res.status(400).json({ error: '委托价格/数量无效' });
+      }
       const frozenUsd = round2(p * q * (1 + BUY_FEE_RATE));
       frozenQuota = Math.round(frozenUsd * CONFIG.quotaPerUnit);
       if (settle.ready() && !(await settle.debit(s.userId, frozenQuota))) {

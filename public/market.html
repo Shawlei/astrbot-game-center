@@ -23,6 +23,8 @@
 .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 12px 0; }
 .balance-line { font-size: 13px; color: var(--muted); }
 .balance-line b { color: var(--gold); }
+.buy-hint { font-size: 12px; color: var(--muted); margin: 4px 2px 10px; line-height: 1.6; }
+.buy-hint b { color: var(--gold); }
 .sel-row { background: rgba(108,124,255,.10); }
 .num-r { text-align: right; font-variant-numeric: tabular-nums; }
 .detail-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -214,6 +216,7 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
         <input id="buyQty" type="number" step="1" min="1" placeholder="买入股数">
         <button id="btnBuy" class="primary">买入</button>
       </div>
+      <div class="buy-hint" id="buyHint">登录后显示可买数量</div>
       <div class="trade-row">
         <input id="sellPrice" type="number" step="0.01" placeholder="卖出限价">
         <input id="sellQty" type="number" step="1" min="1" placeholder="卖出股数">
@@ -221,7 +224,7 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
         <button id="btnSell" class="danger">卖出</button>
       </div>
       <div class="rules-line" style="margin-top:10px">
-        <b>限价委托</b> · 买入限价 ≥ 卖一价立即成交，否则挂单待成交 · 涨跌停 <b id="rLimit">±10%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单
+        <b id="rMode">限价委托</b> · <span id="rModeDesc">买入限价 ≥ 卖一价立即成交，否则挂单待成交</span> · 涨跌停 <b id="rLimit">T+1 ±10%</b> / <b id="rLimitT0" style="color:var(--muted)">T+0 ±3%</b> · 买入手续费 <b id="rBuyFee">0.1%</b> · 卖出手续费 <b id="rSellFee">0.2%</b>（含印花税）· <b style="color:var(--gold)">T+0</b> 当日可卖 / <b style="color:var(--gold)" id="rTplus">T+1</b> <span id="rTplusDesc">次日可卖</span> · 未成交委托可随时撤单
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -283,6 +286,7 @@ let newsTtlHours = 6;
 let flashCodes = {}; // code -> { dir:'up'|'down', until:ts } 新闻驱动跳价高亮
 let klineView = null;
 let fees = { buyFeeRate: 0.001, sellFeeRate: 0.002, limitPct: 0.10, t1: true };
+let balUsd = 0; // 当前可用余额（美元，来自 GCAuth.me().quota / QUOTA_PER_UNIT）
 let ws = null;
 let wsConnected = false;
 let marketStatus = null;
@@ -473,13 +477,60 @@ function closeNews() {
 $('newsModal').addEventListener('click', (e) => { if (e.target === $('newsModal')) closeNews(); });
 
 function applyFees() {
-  $('rLimit').textContent = '±' + (fees.limitPct * 100).toFixed(0) + '%';
   $('rBuyFee').textContent = (fees.buyFeeRate * 100).toFixed(1) + '%';
   $('rSellFee').textContent = (fees.sellFeeRate * 100).toFixed(1) + '%';
+  // 涨跌停：T+1 用 limitPct（赚大钱），T+0 用更小的 t0LimitPct（赚小钱）
+  $('rLimit').textContent = 'T+1 ±' + ((fees.limitPct || 0.10) * 100).toFixed(0) + '%';
+  const t0lp = (fees.t0LimitPct != null ? fees.t0LimitPct : 0.03) * 100;
+  $('rLimitT0').textContent = 'T+0 ±' + t0lp.toFixed(0) + '%';
   const tp = parseInt(fees.tPlusDays, 10);
   const tPlus = isNaN(tp) ? 1 : tp;
   $('rTplus').textContent = 'T+' + tPlus;
   $('rTplusDesc').textContent = tPlusDesc();
+  // 委托开关：关闭则按现价立即成交（市价单）
+  applyTradingMode();
+}
+
+function applyTradingMode() {
+  const instant = fees.entrustEnabled === false;
+  const buyP = $('buyPrice'), sellP = $('sellPrice');
+  if (instant) {
+    buyP.style.display = 'none';
+    sellP.style.display = 'none';
+    buyP.disabled = true; sellP.disabled = true;
+    $('rMode').textContent = '市价成交';
+    $('rModeDesc').textContent = '按现价立即成交，无需等待撮合';
+  } else {
+    buyP.style.display = '';
+    sellP.style.display = '';
+    buyP.disabled = false; sellP.disabled = false;
+    $('rMode').textContent = '限价委托';
+    $('rModeDesc').textContent = '买入限价 ≥ 卖一价立即成交，否则挂单待成交';
+  }
+  updateBuyHint();
+}
+
+// 买入提示：当前可用余额可买多少股 + 输入股数后的预计花费
+function updateBuyHint() {
+  const el = $('buyHint');
+  if (!el) return;
+  if (!GCAuth.isLoggedIn()) { el.textContent = '登录后显示可买数量'; return; }
+  const s = selected ? stocksMap[selected] : null;
+  const bf = fees.buyFeeRate || 0.001;
+  const instant = fees.entrustEnabled === false;
+  const price = instant ? (s ? s.price : 0) : parseFloat($('buyPrice').value);
+  const qty = parseFloat($('buyQty').value);
+  let html = '可用余额 <b>$' + balUsd.toFixed(2) + '</b>';
+  if (s && price > 0) {
+    const maxShares = Math.floor(balUsd / (price * (1 + bf)));
+    html += ' · 按' + (instant ? '现价' : '限价') + ' $' + price.toFixed(2) + ' 最多可买约 <b>' + maxShares + '</b> 股';
+    if (qty > 0) {
+      const cost = price * qty;
+      const fee = cost * bf;
+      html += ' · 买 ' + qty + ' 股约需 <b>$' + (cost + fee).toFixed(2) + '</b>（含手续费 $' + fee.toFixed(2) + '）';
+    }
+  }
+  el.innerHTML = html;
 }
 
 // ---- 分时图 ----
@@ -839,14 +890,16 @@ function renderFundamentals(s) {
 }
 function selectStock(code) {
   selected = code;
-  // 默认委托价：买=卖一（现价+1 tick）、卖=买一（现价-1 tick），用户可自行修改
+  // 默认委托价：买=卖一（现价+1 tick）、卖=买一（现价-1 tick），用户可自行修改；市价模式下用现价
   const s = stocksMap[code];
   if (s) {
-    $('buyPrice').value = round2(s.price + 0.01).toFixed(2);
-    $('sellPrice').value = round2(s.price - 0.01).toFixed(2);
+    const instant = fees.entrustEnabled === false;
+    $('buyPrice').value = (instant ? s.price : round2(s.price + 0.01)).toFixed(2);
+    $('sellPrice').value = (instant ? s.price : round2(s.price - 0.01)).toFixed(2);
   }
   paintDetail(code);
   loadOrderbook(code);
+  updateBuyHint();
   document.querySelectorAll('#stockTable tbody tr').forEach((tr) => {
     tr.classList.toggle('sel-row', tr.dataset.code === code);
   });
@@ -948,28 +1001,38 @@ function renderTable() {
   }
 }
 
-// ---- 交易（限价委托） ----
+// ---- 交易（限价委托 / 市价成交） ----
 async function placeOrder(side) {
   const token = GCAuth.getToken();
   if (!token) { alert('请先登录 NewAPI 账号'); return; }
   if (!selected) { alert('请先选择一只股票'); return; }
   const s = stocksMap[selected];
-  const price = parseFloat(side === 'buy' ? $('buyPrice').value : $('sellPrice').value);
+  const instant = fees.entrustEnabled === false;
+  const price = instant ? s.price : parseFloat(side === 'buy' ? $('buyPrice').value : $('sellPrice').value);
   const qty = parseFloat(side === 'buy' ? $('buyQty').value : $('sellQty').value);
   if (!(price > 0)) { alert('请输入委托价格'); return; }
   if (!(qty > 0)) { alert('请输入委托数量（股）'); return; }
   const verb = side === 'buy' ? '买入' : '卖出';
-  if (!confirm('确认' + verb + ' ' + s.name + '：' + qty + ' 股 @ $' + price.toFixed(2) + ' ？')) return;
-  setStatus(verb + '委托提交中…');
+  const bf = fees.buyFeeRate || 0.001;
+  if (side === 'buy') {
+    const cost = price * qty;
+    const fee = cost * bf;
+    const total = cost + fee;
+    if (!confirm('确认买入 ' + s.name + ' ' + qty + ' 股 @ $' + price.toFixed(2) +
+      '\n使用额度 $' + total.toFixed(2) + '（含手续费 $' + fee.toFixed(2) + '）？')) return;
+  } else {
+    if (!confirm('确认卖出 ' + s.name + ' ' + qty + ' 股 @ $' + price.toFixed(2) + ' ？')) return;
+  }
+  setStatus(verb + '提交中…');
   const r = await fetch('/api/market/order', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, code: selected, side, price, qty }),
+    body: JSON.stringify({ token, code: selected, side, price: instant ? 0 : price, qty }),
   });
   const j = await r.json();
   if (r.status !== 200 || j.code !== 'ok') { setStatus(j.error || verb + '失败', 'error'); return; }
-  let msg = verb + '委托已提交：';
+  let msg = verb + (instant ? '已成交：' : '委托已提交：');
   if (j.filled > 0) {
-    msg += '已成交 ' + j.filled + ' 股 @ $' + (j.avgPx || 0).toFixed(2);
+    msg += '成交 ' + j.filled + ' 股 @ $' + (j.avgPx || 0).toFixed(2);
     if (j.filled < j.qty) msg += '（部分成交，剩余 ' + (j.qty - j.filled) + ' 股挂单）';
     if (side === 'buy' && j.spentUsd != null) msg += ' · 花费 $' + j.spentUsd.toFixed(2);
     if (side === 'sell' && j.netUsd != null) msg += ' · 回款 $' + j.netUsd.toFixed(2);
@@ -977,7 +1040,8 @@ async function placeOrder(side) {
     msg += '未成交（已挂单，等待对手方）';
   }
   setStatus(msg);
-  if (j.quota != null) $('balanceUsd').textContent = '$' + (j.quota / QUOTA_PER_UNIT).toFixed(2);
+  if (j.quota != null) { balUsd = j.quota / QUOTA_PER_UNIT; $('balanceUsd').textContent = '$' + balUsd.toFixed(2); }
+  updateBuyHint();
   loadHoldings();
   loadOrders();
   loadOrderbook(selected);
@@ -1120,7 +1184,11 @@ async function loadSectors() {
 // ---- 余额刷新 ----
 async function refreshBalance() {
   const m = await GCAuth.me();
-  if (m && m.quota != null) $('balanceUsd').textContent = '$' + (m.quota / QUOTA_PER_UNIT).toFixed(2);
+  if (m && m.quota != null) {
+    balUsd = m.quota / QUOTA_PER_UNIT;
+    $('balanceUsd').textContent = '$' + balUsd.toFixed(2);
+  }
+  updateBuyHint();
 }
 
 function escapeHtml(s) {
@@ -1130,6 +1198,8 @@ function escapeHtml(s) {
 $('btnBuy').onclick = buy;
 $('btnSell').onclick = sell;
 $('btnSellAll').onclick = sellAll;
+$('buyPrice').addEventListener('input', updateBuyHint);
+$('buyQty').addEventListener('input', updateBuyHint);
 $('tabIntraday').onclick = () => { chartMode = 'intraday'; renderChart(); };
 const KLINE_TABS = { tab1m: '1m', tab5m: '5m', tab15m: '15m', tab30m: '30m', tab60m: '60m', tabDay: 'day', tabWeek: 'week', tabMonth: 'month' };
 for (const id in KLINE_TABS) {
