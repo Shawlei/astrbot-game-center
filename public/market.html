@@ -89,6 +89,22 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
 .news-more-btn:hover { background: var(--panel-2); }
 .news-ttl { color: var(--muted); font-size: 11px; flex-shrink: 0; padding-top: 1px; }
 .news-expired { opacity: .4; }
+
+/* AI 全驱动：市场舆论/情绪面板 */
+.senti-overall { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.senti-gauge { width: 140px; height: 10px; border-radius: 999px; background: linear-gradient(90deg, #3ecf8e, #8b90a8 50%, #e0565c); position: relative; overflow: hidden; }
+.senti-needle { position: absolute; top: -3px; width: 4px; height: 16px; background: #fff; border-radius: 2px; box-shadow: 0 0 4px rgba(0,0,0,.6); transform: translateX(-50%); }
+.senti-label { font-size: 13px; font-weight: 700; }
+.senti-label.bull { color: var(--red); }
+.senti-label.bear { color: var(--green); }
+.senti-label.neutral { color: var(--muted); }
+.senti-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.senti-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+.senti-chip.bull { background: rgba(224,86,92,.12); color: var(--red); border: 1px solid rgba(224,86,92,.3); }
+.senti-chip.bear { background: rgba(62,207,142,.12); color: var(--green); border: 1px solid rgba(62,207,142,.3); }
+.senti-chip.flat { background: rgba(139,144,168,.12); color: var(--muted); border: 1px solid rgba(139,144,168,.25); }
+.senti-narrative { font-size: 13px; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
+.senti-time { font-size: 11px; color: var(--muted); margin-top: 8px; }
 .rules-line { font-size: 12px; color: var(--muted); line-height: 1.7; }
 .rules-line b { color: var(--text); }
 
@@ -136,6 +152,12 @@ tr.news-flash.down { animation: newsFlashDown 1s ease 3; }
   <div class="card">
     <div class="section-title" style="margin-top:0">📰 消息面 <span style="font-size:12px;color:var(--muted);font-weight:400">公司新闻 · 点击标题查看全文 · <span id="newsTtl">6</span> 小时后自动消失</span></div>
     <div id="newsList"><div class="empty">暂无新闻，等待市场消息…</div></div>
+  </div>
+
+  <!-- AI 全驱动：市场舆论 / 情绪（仅开启 AI 全驱动时显示） -->
+  <div class="card" id="sentimentCard" style="display:none">
+    <div class="section-title" style="margin-top:0">🧠 市场舆论 <span style="font-size:12px;color:var(--muted);font-weight:400">AI 全驱动 · 情绪与盘面解读</span></div>
+    <div id="sentimentBody"><div class="empty">AI 正在研判市场…</div></div>
   </div>
 
   <!-- 新闻全文弹窗 -->
@@ -290,6 +312,7 @@ let balUsd = 0; // 当前可用余额（美元，来自 GCAuth.me().quota / QUOT
 let ws = null;
 let wsConnected = false;
 let marketStatus = null;
+let sentiment = null; // AI 全驱动：{ aiDriven, overall, sectors, narrative, at }
 
 const $ = (id) => document.getElementById(id);
 
@@ -360,6 +383,7 @@ function connectWS() {
     if (m.type === 'quote') onQuote(m);
     else if (m.type === 'trade') onTrade(m);
     else if (m.type === 'news') onNews(m);
+    else if (m.type === 'sentiment') onSentiment(m);
   };
   ws.onclose = () => { wsConnected = false; setConn(false, '重连中…'); setTimeout(connectWS, 3000); };
   ws.onerror = () => {};
@@ -472,6 +496,49 @@ function openNews(n) {
 }
 function closeNews() {
   $('newsModal').classList.remove('show');
+}
+
+// ---- AI 全驱动：市场舆论/情绪面板 ----
+function onSentiment(s) {
+  sentiment = s;
+  renderSentiment();
+}
+function sentiTone(v) {
+  if (v > 0.08) return 'bull';
+  if (v < -0.08) return 'bear';
+  return 'neutral';
+}
+function renderSentiment() {
+  const card = $('sentimentCard');
+  const body = $('sentimentBody');
+  if (!card) return;
+  const active = sentiment && sentiment.aiDriven;
+  card.style.display = active ? '' : 'none';
+  if (!active) return;
+  const ov = sentiment.overall || 0;
+  const tone = sentiTone(ov);
+  const pct = Math.max(0, Math.min(1, (ov + 1) / 2)); // 0..1 映射到 -1..+1
+  // 板块情绪 chips
+  const secs = sentiment.sectors || {};
+  const chips = Object.keys(secs).length
+    ? Object.keys(secs).map((k) => {
+        const v = secs[k] || 0;
+        const t = sentiTone(v);
+        const arrow = v > 0.08 ? '▲' : (v < -0.08 ? '▼' : '—');
+        const txt = t === 'flat' ? ' ' + v.toFixed(2) : ' ' + (v > 0 ? '+' : '') + v.toFixed(2);
+        return '<span class="senti-chip ' + t + '">' + escapeHtml(k) + ' ' + arrow + txt + '</span>';
+      }).join('')
+    : '<span class="senti-chip flat">暂无板块情绪</span>';
+  const label = tone === 'bull' ? '多头情绪' : (tone === 'bear' ? '空头情绪' : '中性');
+  const timeStr = sentiment.at ? new Date(sentiment.at).toTimeString().slice(0, 8) : '';
+  body.innerHTML =
+    '<div class="senti-overall">' +
+      '<span class="senti-label ' + tone + '">' + label + ' ' + (ov >= 0 ? '+' : '') + ov.toFixed(2) + '</span>' +
+      '<div class="senti-gauge"><div class="senti-needle" style="left:' + (pct * 100).toFixed(1) + '%"></div></div>' +
+    '</div>' +
+    '<div class="senti-chips">' + chips + '</div>' +
+    '<div class="senti-narrative">' + escapeHtml(sentiment.narrative || 'AI 正在研判市场…') + '</div>' +
+    (timeStr ? '<div class="senti-time">AI 研判于 ' + timeStr + ' · 每 3 分钟刷新</div>' : '');
 }
 // 点击遮罩空白处关闭弹窗
 $('newsModal').addEventListener('click', (e) => { if (e.target === $('newsModal')) closeNews(); });
@@ -963,6 +1030,7 @@ async function loadStocks() {
     if (j.fees) { fees = j.fees; applyFees(); }
     if (j.news && j.news.length) { newsList = j.news.slice(0, 30); renderNews(); }
     if (j.newsTtlHours) { newsTtlHours = j.newsTtlHours; $('newsTtl').textContent = newsTtlHours; }
+    if (j.sentiment) { onSentiment(j.sentiment); }
     if (j.status) applyStatus(j.status);
     indexInfo = j.index; breadth = j.breadth || { up: 0, down: 0, flat: 0 };
     stocksMap = {};
