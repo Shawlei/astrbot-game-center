@@ -36,8 +36,30 @@ const market = new Market(CONFIG.portfolioFile, CONFIG.reversalsFile);
 const GAME_TYPES = {
   xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ(), maxPlayers: 2 },
   gomoku: { name: '五子棋', url: 'gomoku.html', create: () => new Gomoku(), maxPlayers: 2 },
-  doudizhu: { name: '斗地主', url: 'doudizhu.html', create: () => new doudizhu.DouDiZhu(), maxPlayers: 3 },
+  doudizhu: { name: '斗地主', url: 'doudizhu.html', create: (cfg) => new doudizhu.DouDiZhu({
+    allowDouble: cfg.allowDouble !== false,
+    allowSuperDouble: cfg.allowSuperDouble !== false,
+    allowSpring: cfg.allowSpring !== false,
+  }), maxPlayers: 3 },
 };
+
+// 读取某游戏的独立配置（后台「游戏设置」；未配置项回退到全局默认值）
+function gameCfg(gameType) {
+  const g = CONFIG.games && CONFIG.games[gameType];
+  if (!g) {
+    return { enabled: true, minBet: CONFIG.minBet, maxBet: CONFIG.maxBet, turnTimeoutMs: CONFIG.turnTimeoutMs };
+  }
+  return {
+    enabled: g.enabled !== false,
+    minBet: g.minBet != null ? g.minBet : CONFIG.minBet,
+    maxBet: g.maxBet != null ? g.maxBet : CONFIG.maxBet,
+    turnTimeoutMs: g.turnTimeoutMs != null ? g.turnTimeoutMs : CONFIG.turnTimeoutMs,
+    maxMult: g.maxMult,
+    allowDouble: g.allowDouble,
+    allowSuperDouble: g.allowSuperDouble,
+    allowSpring: g.allowSpring,
+  };
+}
 
 // ---- 房间存储 ----
 const rooms = new Map(); // id -> room
@@ -100,6 +122,7 @@ function makeRoom(gameType, groupId, player, betUsd) {
     state: 'waiting', // waiting | playing | finished
     game: null,
     turn: 1,
+    timeoutMs: gameCfg(gameType).turnTimeoutMs, // 该游戏的思考超时（毫秒）
     turnDeadline: null, // 当前轮到方的最晚落子时间戳（超时由人机托管）
     autoMoving: false,
     winner: 0,
@@ -175,6 +198,29 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, db: settle.ready(), quotaPerUnit: CONFIG.quotaPerUnit, minBet: CONFIG.minBet, maxBet: CONFIG.maxBet });
 });
 
+// 游戏清单（供大厅动态渲染）：含启用状态与各游戏押注上下限
+app.get('/api/games', (req, res) => {
+  const catalog = [
+    { type: 'doudizhu',  name: '斗地主',   url: 'doudizhu.html',  category: 'pvp' },
+    { type: 'xiangqi',   name: '中国象棋', url: 'xiangqi.html',   category: 'pvp' },
+    { type: 'gomoku',    name: '五子棋',   url: 'gomoku.html',    category: 'pvp' },
+    { type: 'snake',     name: '贪吃蛇',   url: 'snake.html',     category: 'solo' },
+    { type: 'breakout',  name: '打砖块',   url: 'breakout.html',  category: 'solo' },
+    { type: 'twentyfour', name: '24点',    url: 'twentyfour.html', category: 'solo' },
+    { type: 'market',    name: '虚拟股市', url: 'market.html',    category: 'market' },
+  ];
+  const list = catalog.map((g) => {
+    const c = gameCfg(g.type);
+    return {
+      type: g.type, name: g.name, url: g.url, category: g.category,
+      enabled: c.enabled !== false,
+      minBet: c.minBet, maxBet: c.maxBet,
+      turnTimeoutMs: c.turnTimeoutMs,
+    };
+  });
+  res.json({ list });
+});
+
 // ---- 登录 ----
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body || {};
@@ -201,10 +247,13 @@ app.post('/api/room', async (req, res) => {
   if (!GAME_TYPES[gameType]) return res.status(400).json({ error: '不支持的游戏类型' });
   if (!groupId || !player || !player.userId) return res.status(400).json({ error: '参数缺失' });
 
+  const cfg = gameCfg(gameType);
+  if (!cfg.enabled) return res.status(400).json({ error: '该游戏已被管理员禁用' });
+
   let betUsd = parseFloat(bet);
-  if (!(betUsd > 0)) betUsd = CONFIG.minBet;
-  if (betUsd < CONFIG.minBet) return res.status(400).json({ error: `最低押注 $${CONFIG.minBet}` });
-  if (betUsd > CONFIG.maxBet) return res.status(400).json({ error: `最高押注 $${CONFIG.maxBet}` });
+  if (!(betUsd > 0)) betUsd = cfg.minBet;
+  if (betUsd < cfg.minBet) return res.status(400).json({ error: `最低押注 $${cfg.minBet}` });
+  if (betUsd > cfg.maxBet) return res.status(400).json({ error: `最高押注 $${cfg.maxBet}` });
 
   const existing = findWaiting(gameType, groupId);
   if (existing) {
@@ -274,9 +323,9 @@ app.post('/api/room/:id/join', async (req, res) => {
     }
   }
 
-  room.game = GAME_TYPES[room.gameType].create();
+  room.game = GAME_TYPES[room.gameType].create(gameCfg(room.gameType));
   room.state = 'playing';
-  room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+  room.turnDeadline = Date.now() + room.timeoutMs;
 
   res.json({ code: 'started', room: roomPublic(room, true) });
 });
@@ -346,12 +395,13 @@ const betQuotaOf = (betUsd) => Math.round(parseFloat(betUsd) * CONFIG.quotaPerUn
 const round2 = (n) => Math.round(n * 100) / 100;
 
 // 解析登录 token + 校验押注，返回 { player, betUsd, betQuota } 或 { error }
-function resolveBet(token, bet) {
+function resolveBet(token, bet, gameType) {
   const s = auth.resolve(token);
   if (!s) return { error: '未登录或登录已过期，请先在大厅登录 NewAPI 账号' };
+  const cfg = gameCfg(gameType);
   const betUsd = parseFloat(bet);
-  if (!(betUsd >= CONFIG.minBet && betUsd <= CONFIG.maxBet)) {
-    return { error: `押注金额需在 $${CONFIG.minBet}~$${CONFIG.maxBet} 之间` };
+  if (!(betUsd >= cfg.minBet && betUsd <= cfg.maxBet)) {
+    return { error: `押注金额需在 $${cfg.minBet}~$${cfg.maxBet} 之间` };
   }
   return { player: { userId: s.userId, username: s.username }, betUsd, betQuota: betQuotaOf(betUsd) };
 }
@@ -372,7 +422,7 @@ async function settleTicket(userId, gameType, betQuota, mult) {
 // 打砖块：开始（扣门票 + 发种子）
 app.post('/api/solo/breakout/start', async (req, res) => {
   try {
-    const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet);
+    const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet, 'breakout');
     if (rb.error) return res.status(400).json({ error: rb.error });
     if (settle.ready() && !(await settle.debit(rb.player.userId, rb.betQuota))) {
       return res.status(400).json({ error: '余额不足' });
@@ -396,7 +446,7 @@ app.post('/api/solo/breakout/end', async (req, res) => {
     if (!s || s.state !== 'playing') return res.status(404).json({ error: '对局不存在或已结束' });
     const targetXs = Array.isArray(req.body && req.body.targetXs) ? req.body.targetXs : [];
     const rep = solo.breakoutReplay(s.seed, targetXs);
-    const mult = solo.breakoutMult(rep.score);
+    const mult = solo.breakoutMult(rep.score, gameCfg('breakout').maxMult);
     const net = await settleTicket(s.userId, 'breakout', s.betQuota, mult);
     soloSessions.delete(s.id);
     res.json({
@@ -412,7 +462,7 @@ app.post('/api/solo/breakout/end', async (req, res) => {
 // 贪吃蛇：开始（扣门票 + 发种子）
 app.post('/api/solo/snake/start', async (req, res) => {
   try {
-    const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet);
+    const rb = resolveBet(req.body && req.body.token, req.body && req.body.bet, 'snake');
     if (rb.error) return res.status(400).json({ error: rb.error });
     if (settle.ready() && !(await settle.debit(rb.player.userId, rb.betQuota))) {
       return res.status(400).json({ error: '余额不足' });
@@ -439,7 +489,7 @@ app.post('/api/solo/snake/end', async (req, res) => {
     if (!s || s.state !== 'playing') return res.status(404).json({ error: '对局不存在或已结束' });
     const dirs = Array.isArray(req.body && req.body.dirs) ? req.body.dirs : [];
     const replay = solo.snakeReplay(s.seed, dirs);
-    const mult = solo.snakeMult(replay.score);
+    const mult = solo.snakeMult(replay.score, gameCfg('snake').maxMult);
     const net = await settleTicket(s.userId, 'snake', s.betQuota, mult);
     soloSessions.delete(s.id);
     res.json({
@@ -466,7 +516,7 @@ app.post('/api/solo/twentyfour/submit', async (req, res) => {
     const { sessionId, token, bet, expression } = req.body || {};
     const s = soloSessions.get(sessionId);
     if (!s) return res.status(404).json({ error: '题目不存在或已过期' });
-    const rb = resolveBet(token, bet);
+    const rb = resolveBet(token, bet, 'twentyfour');
     if (rb.error) return res.status(400).json({ error: rb.error });
     const v = solo.twentyfourValidate(s.numbers, expression);
     if (!v.ok && v.kind !== 'wrong') {
@@ -537,6 +587,7 @@ app.get('/api/market/stock/:code', (req, res) => {
 // 限价委托（买/卖统一）：买冻结额度、卖冻结持仓，连续竞价即时撮合。
 app.post('/api/market/order', async (req, res) => {
   try {
+    if (!gameCfg('market').enabled) return res.status(400).json({ error: '模拟股市已被管理员禁用' });
     const s = auth.resolve((req.body || {}).token);
     if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
     const { code, side, price, qty } = req.body || {};
@@ -659,10 +710,13 @@ app.post('/api/invite', (req, res) => {
   if (!GAME_TYPES[gameType]) return res.status(400).json({ error: '不支持的游戏类型' });
   if (!groupId) return res.status(400).json({ error: '缺少群号' });
 
+  const cfg = gameCfg(gameType);
+  if (!cfg.enabled) return res.status(400).json({ error: '该游戏已被管理员禁用' });
+
   let betUsd = parseFloat(bet);
-  if (!(betUsd > 0)) betUsd = CONFIG.minBet;
-  if (betUsd < CONFIG.minBet) return res.status(400).json({ error: `最低押注 $${CONFIG.minBet}` });
-  if (betUsd > CONFIG.maxBet) return res.status(400).json({ error: `最高押注 $${CONFIG.maxBet}` });
+  if (!(betUsd > 0)) betUsd = cfg.minBet;
+  if (betUsd < cfg.minBet) return res.status(400).json({ error: `最低押注 $${cfg.minBet}` });
+  if (betUsd > cfg.maxBet) return res.status(400).json({ error: `最高押注 $${cfg.maxBet}` });
 
   const id = crypto.randomBytes(8).toString('hex');
   pending.set(id, {
@@ -790,7 +844,7 @@ function sendToSeat(roomId, seat, msg) {
 function broadcastDDZ(room, type, extra) {
   for (let seat = 1; seat <= room.maxPlayers; seat++) {
     const view = room.game.viewFor(seat - 1);
-    const msg = Object.assign({ type, player: seat, deadline: room.turnDeadline, timeoutMs: CONFIG.turnTimeoutMs }, extra || {}, view);
+    const msg = Object.assign({ type, player: seat, deadline: room.turnDeadline, timeoutMs: room.timeoutMs }, extra || {}, view);
     sendToSeat(room.id, seat, msg);
   }
 }
@@ -858,10 +912,10 @@ async function handleDDZMessage(ws, room, player, msg) {
   if (msg.type === 'bid') {
     const r = g.bid(seat, msg.score);
     if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
     if (r.redealt) {
       broadcastDDZ(room, 'redeal', { bidStart: g.bidStart });
-    } else if (r.phase === 'doubling') {
+    } else if (r.landlord !== undefined && r.landlord !== -1) {
       broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom });
     } else {
       broadcastDDZ(room, 'bid', {});
@@ -869,12 +923,12 @@ async function handleDDZMessage(ws, room, player, msg) {
   } else if (msg.type === 'double') {
     const r = g.double(seat, msg.factor);
     if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
     broadcastDDZ(room, 'double', {});
   } else if (msg.type === 'play') {
     const r = g.play(seat, msg.cards);
     if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
     if (r.over) {
       await finishDoudizhu(room);
       broadcastDDZ(room, 'end', { result: g.resultView(), winner: room.winner, reason: g.reason });
@@ -884,7 +938,7 @@ async function handleDDZMessage(ws, room, player, msg) {
   } else if (msg.type === 'pass') {
     const r = g.pass(seat);
     if (!r.ok) { sendToSeat(room.id, player, { type: 'error', message: r.error }); return; }
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
     broadcastDDZ(room, 'pass', {});
   }
 }
@@ -901,10 +955,11 @@ async function ddzAutoMove(room) {
       const score = ddzAi.bid(g.hands[seat], g.highestBid);
       const r = g.bid(seat, score);
       if (r.redealt) broadcastDDZ(room, 'redeal', {});
-      else if (r.phase === 'doubling') broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom, auto: true });
+      else if (r.landlord !== undefined && r.landlord !== -1) broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom, auto: true });
       else broadcastDDZ(room, 'bid', { auto: true, autoSeat: seat });
     } else if (g.phase === 'doubling') {
-      const factor = ddzAi.double(g.hands[seat], seat === g.landlord);
+      let factor = ddzAi.double(g.hands[seat], seat === g.landlord);
+      if (factor === 4 && g.rules && g.rules.allowSuperDouble === false) factor = 2; // 未启用超级加倍，AI 降级为加倍
       g.double(seat, factor);
       broadcastDDZ(room, 'double', { auto: true, autoSeat: seat });
     } else if (g.phase === 'playing') {
@@ -924,7 +979,7 @@ async function ddzAutoMove(room) {
         }
       }
     }
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
   } finally {
     room.autoMoving = false;
   }
@@ -940,7 +995,7 @@ async function autoMove(room) {
   try {
     const res = room.game.applyMove(turn, move);
     room.turn = room.game.turnPlayer();
-    room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+    room.turnDeadline = Date.now() + room.timeoutMs;
     broadcastRoom(room.id, {
       type: 'move',
       move,
@@ -949,7 +1004,7 @@ async function autoMove(room) {
       auto: true,
       autoPlayer: turn,
       deadline: room.turnDeadline,
-      timeoutMs: CONFIG.turnTimeoutMs,
+      timeoutMs: room.timeoutMs,
     });
     if (res.over) {
       await finishRoom(room, res.winner, '超时托管结束');
@@ -1046,7 +1101,7 @@ wss.on('connection', (ws, req) => {
       you: names[player],
       seats: names,
       deadline: room.turnDeadline,
-      timeoutMs: CONFIG.turnTimeoutMs,
+      timeoutMs: room.timeoutMs,
     }, room.game.viewFor(player - 1))));
 
     ws.on('message', async (raw) => {
@@ -1070,7 +1125,7 @@ wss.on('connection', (ws, req) => {
     opponent: { qq: opponent.qq, name: opponent.name },
     you: { qq: room.players[player].qq, name: room.players[player].name },
     deadline: room.turnDeadline,
-    timeoutMs: CONFIG.turnTimeoutMs,
+    timeoutMs: room.timeoutMs,
   }));
 
   ws.on('message', async (raw) => {
@@ -1089,7 +1144,7 @@ wss.on('connection', (ws, req) => {
         return;
       }
       room.turn = room.game.turnPlayer ? room.game.turnPlayer() : room.turn;
-      room.turnDeadline = Date.now() + CONFIG.turnTimeoutMs;
+      room.turnDeadline = Date.now() + room.timeoutMs;
       broadcastRoom(room.id, {
         type: 'move', move: msg.move, state: room.game.getState(), turn: room.game.turnPlayer(),
         deadline: room.turnDeadline, timeoutMs: CONFIG.turnTimeoutMs,

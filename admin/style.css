@@ -82,7 +82,12 @@ input:focus { outline: none; border-color: var(--accent); }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { color: var(--muted); font-size: 12px; }
+.field input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin-top: 2px; }
 .save-row { margin-top: 18px; display: flex; gap: 10px; align-items: center; }
+
+/* 游戏设置分类标题 */
+.section-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 22px 0 10px; padding-left: 10px; border-left: 3px solid var(--accent); }
+.section-title:first-of-type { margin-top: 4px; }
 
 /* 按钮 */
 .btn {

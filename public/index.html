@@ -69,6 +69,16 @@ const PVP_GAMES = [
   { href: '/gomoku.html' + q, emoji: '⚫', name: '五子棋', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
 ];
 
+const GAME_META = {
+  doudizhu: { emoji: '🃏', desc: '三人一桌，叫地主/加倍/炸弹，经典斗地主规则。' },
+  xiangqi: { emoji: '♟️', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
+  gomoku: { emoji: '⚫', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
+  snake: { emoji: '🐍', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
+  breakout: { emoji: '🎮', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
+  twentyfour: { emoji: '🧮', desc: '四张牌算出 24，答对赢额、答错扣额。' },
+  market: { emoji: '📈', desc: '虚拟股票实时波动，低买高卖。' },
+};
+
 function renderGames(el, games) {
   el.innerHTML = '';
   for (const g of games) {
@@ -79,9 +89,27 @@ function renderGames(el, games) {
     el.appendChild(a);
   }
 }
-renderGames(document.getElementById('soloGames'), SOLO_GAMES);
-renderGames(document.getElementById('marketGames'), MARKET_GAMES);
-renderGames(document.getElementById('pvpGames'), PVP_GAMES);
+
+// 优先按服务端 /api/games 动态渲染（禁用游戏自动隐藏），失败则回退到静态清单
+async function loadGames() {
+  const soloEl = document.getElementById('soloGames');
+  const marketEl = document.getElementById('marketGames');
+  const pvpEl = document.getElementById('pvpGames');
+  try {
+    const j = await (await fetch('/api/games')).json();
+    const list = (j.list || []).filter((g) => g.enabled !== false);
+    const byCat = (c) => list.filter((g) => g.category === c)
+      .map((g) => ({ href: '/' + g.url + q, emoji: (GAME_META[g.type] || {}).emoji || '🎮', name: g.name, desc: (GAME_META[g.type] || {}).desc || '' }));
+    renderGames(soloEl, byCat('solo'));
+    renderGames(marketEl, byCat('market'));
+    renderGames(pvpEl, byCat('pvp'));
+  } catch (e) {
+    renderGames(soloEl, SOLO_GAMES);
+    renderGames(marketEl, MARKET_GAMES);
+    renderGames(pvpEl, PVP_GAMES);
+  }
+}
+loadGames();
 
 // ---- 凭房间码进入对战 ----
 document.getElementById('btnJoin').onclick = async () => {

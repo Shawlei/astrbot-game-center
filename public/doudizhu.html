@@ -246,6 +246,7 @@ let seatsInfo = { 1: null, 2: null, 3: null };
 let deadline = null, timeoutMs = 180000, timerInterval = null;
 let gameOver = false, fatalError = false;
 let curRid = null, curPl = null, curTk = null, reconnectTimer = null;
+let rules = { allowDouble: true, allowSuperDouble: true, allowSpring: true };
 
 const $ = (id) => document.getElementById(id);
 
@@ -409,7 +410,7 @@ function renderControls() {
     };
     mk('不加倍', '', 1);
     mk('加倍 ×2', 'double', 2);
-    mk('超级加倍 ×4', 'super', 4);
+    if (rules.allowSuperDouble !== false) mk('超级加倍 ×4', 'super', 4);
   } else if (phase === 'playing' && current === mySeat) {
     const mk = (label, cls, fn) => {
       const b = document.createElement('button');
@@ -551,6 +552,7 @@ function connectWS(rid, pl, tk) {
 
 function applyState(msg) {
   phase = msg.phase || phase;
+  if (msg.rules) rules = msg.rules;
   hand = msg.me ? msg.me.slice() : hand;
   landlord = msg.landlord != null ? msg.landlord : landlord;
   bottom = msg.bottom ? msg.bottom.slice() : bottom;

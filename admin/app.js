@@ -39,6 +39,48 @@ const CONFIG_SECTIONS = [
   ]},
 ];
 
+// 游戏设置（按类分区：联机对战 / 单机小游戏 / 模拟股市）
+const GAMES_SECTIONS = [
+  { id: 'games-pvp', title: '联机对战', fields: [
+    { key: 'games.doudizhu.enabled', label: '斗地主 · 启用', type: 'bool' },
+    { key: 'games.doudizhu.minBet', label: '斗地主 · 押注下限（$）', type: 'number' },
+    { key: 'games.doudizhu.maxBet', label: '斗地主 · 押注上限（$）', type: 'number' },
+    { key: 'games.doudizhu.turnTimeoutMs', label: '斗地主 · 思考超时（毫秒）', type: 'number' },
+    { key: 'games.doudizhu.allowDouble', label: '斗地主 · 允许加倍阶段', type: 'bool' },
+    { key: 'games.doudizhu.allowSuperDouble', label: '斗地主 · 允许超级加倍 ×4', type: 'bool' },
+    { key: 'games.doudizhu.allowSpring', label: '斗地主 · 春天/反春翻倍', type: 'bool' },
+    { key: 'games.xiangqi.enabled', label: '象棋 · 启用', type: 'bool' },
+    { key: 'games.xiangqi.minBet', label: '象棋 · 押注下限（$）', type: 'number' },
+    { key: 'games.xiangqi.maxBet', label: '象棋 · 押注上限（$）', type: 'number' },
+    { key: 'games.xiangqi.turnTimeoutMs', label: '象棋 · 思考超时（毫秒）', type: 'number' },
+    { key: 'games.gomoku.enabled', label: '五子棋 · 启用', type: 'bool' },
+    { key: 'games.gomoku.minBet', label: '五子棋 · 押注下限（$）', type: 'number' },
+    { key: 'games.gomoku.maxBet', label: '五子棋 · 押注上限（$）', type: 'number' },
+    { key: 'games.gomoku.turnTimeoutMs', label: '五子棋 · 思考超时（毫秒）', type: 'number' },
+  ]},
+  { id: 'games-solo', title: '单机小游戏', fields: [
+    { key: 'games.snake.enabled', label: '贪吃蛇 · 启用', type: 'bool' },
+    { key: 'games.snake.minBet', label: '贪吃蛇 · 押注下限（$）', type: 'number' },
+    { key: 'games.snake.maxBet', label: '贪吃蛇 · 押注上限（$）', type: 'number' },
+    { key: 'games.snake.maxMult', label: '贪吃蛇 · 最高倍率', type: 'number', step: '0.1' },
+    { key: 'games.breakout.enabled', label: '打砖块 · 启用', type: 'bool' },
+    { key: 'games.breakout.minBet', label: '打砖块 · 押注下限（$）', type: 'number' },
+    { key: 'games.breakout.maxBet', label: '打砖块 · 押注上限（$）', type: 'number' },
+    { key: 'games.breakout.maxMult', label: '打砖块 · 最高倍率', type: 'number', step: '0.1' },
+    { key: 'games.twentyfour.enabled', label: '24点 · 启用', type: 'bool' },
+    { key: 'games.twentyfour.minBet', label: '24点 · 押注下限（$）', type: 'number' },
+    { key: 'games.twentyfour.maxBet', label: '24点 · 押注上限（$）', type: 'number' },
+  ]},
+  { id: 'games-market', title: '模拟股市', fields: [
+    { key: 'games.market.enabled', label: '模拟股市 · 启用', type: 'bool' },
+    { key: 'games.market.minBuyUsd', label: '单笔最低投入（$）', type: 'number' },
+    { key: 'games.market.buyFeeRate', label: '买入手续费率（0.001=0.1%）', type: 'number', step: '0.0001' },
+    { key: 'games.market.sellFeeRate', label: '卖出手续费率', type: 'number', step: '0.0001' },
+    { key: 'games.market.limitPct', label: '涨跌停幅度（0.10=±10%）', type: 'number', step: '0.01' },
+    { key: 'games.market.t0Every', label: 'T+0 间隔（每 N 只 1 只 T+0）', type: 'number' },
+  ]},
+];
+
 function api(path, opts) {
   const o = opts || {};
   const headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
@@ -171,14 +213,23 @@ function fmtUptime(s) {
 // ---- 配置表单 ----
 function loadConfigForms() {
   api('/api/admin/config').then(({ config }) => {
-    CONFIG_SECTIONS.forEach((sec) => {
+    const sections = CONFIG_SECTIONS.concat(GAMES_SECTIONS);
+    sections.forEach((sec) => {
       const box = $('form-' + sec.id);
+      if (!box) return;
       box.innerHTML = sec.fields.map((f) => {
         const v = getPath(config, f.key);
+        if (f.type === 'bool') {
+          const checked = v === true ? ' checked' : '';
+          return `<div class="field" data-key="${f.key}" data-type="bool">
+            <label>${f.label}</label>
+            <input type="checkbox"${checked}>
+          </div>`;
+        }
         const val = f.type === 'password' && v ? '••••••••' : (v === undefined || v === null ? '' : v);
         return `<div class="field" data-key="${f.key}" data-type="${f.type}">
           <label>${f.label}</label>
-          <input type="${f.type}" placeholder="${f.ph || ''}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
+          <input type="${f.type}" step="${f.step || ''}" placeholder="${f.ph || ''}" value="${escapeAttr(String(val))}" ${f.type === 'password' ? 'data-masked="1"' : ''}>
         </div>`;
       }).join('') + `<div class="save-row" style="grid-column:1/-1"><button class="btn" data-save="${sec.id}">保存</button></div>`;
     });
@@ -188,14 +239,22 @@ function loadConfigForms() {
 
 function saveSection(secId) {
   const box = $('form-' + secId);
+  if (!box) return;
   const patch = {};
   box.querySelectorAll('.field').forEach((field) => {
     const key = field.dataset.key;
     const type = field.dataset.type;
     const input = field.querySelector('input');
+    if (type === 'bool') {
+      setPath(patch, key, input.checked);
+      return;
+    }
     let val = input.value;
     if (input.dataset.masked && val === '••••••••') return; // 未修改密码，跳过
-    if (type === 'number') { val = val === '' ? '' : Number(val); }
+    if (type === 'number') {
+      if (val === '') return; // 数字留空视为不修改
+      val = Number(val);
+    }
     setPath(patch, key, val);
   });
   api('/api/admin/config', { method: 'POST', body: { config: patch } })
