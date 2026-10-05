@@ -104,13 +104,15 @@ function snakeSpawnFood(snake, rng) {
 
 let snake, dir, pending, food, score, dirs, rng, timer;
 
-fetch('/api/health').then((r) => r.json()).then((j) => {
-  if (j.minBet) minBet = j.minBet;
-  if (j.maxBet) maxBet = j.maxBet;
-  if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit;
+// 从 /api/games 取贪吃蛇的独立押注配置（未覆盖时回退全局）
+fetch('/api/games').then((r) => r.json()).then((j) => {
+  const g = (j.list || []).find((x) => x.type === 'snake');
+  if (!g) return;
+  minBet = g.minBet; maxBet = g.maxBet;
   document.getElementById('betBadge').textContent = '门票 $' + minBet + '~$' + maxBet;
   const b = document.getElementById('bet'); b.min = minBet; b.max = maxBet; b.value = minBet;
 }).catch(() => {});
+fetch('/api/health').then((r) => r.json()).then((j) => { if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit; }).catch(() => {});
 
 GCAuth.renderAuthBar(document.getElementById('authBar'));
 
