@@ -945,7 +945,12 @@ app.get('/js/doudizhu.js', (req, res) => {
   res.type('application/javascript').send(fs.readFileSync(path.join(__dirname, 'lib', 'doudizhu.js')));
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res) {
+    // 禁用启发式缓存（保留 ETag 协商 304）：页面更新后手机端刷新立即生效，避免缓存旧 HTML
+    res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 
 // ---- WebSocket ----
 const server = http.createServer(app);

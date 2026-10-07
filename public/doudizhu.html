@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>斗地主</title>
-<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/style.css?v=1007">
 <style>
 :root {
   --felt: #1e5d3a;
@@ -81,8 +81,11 @@ body { padding: 16px 8px 24px; }
 .my-hand {
   display: flex; justify-content: center; align-items: flex-end;
   min-height: 96px; padding: 6px 4px 0;
+  /* 关键：flex 子项默认 min-width:auto 会被 20 张牌内容反向撑宽、超出牌桌被裁，
+     必须置 0 才能让 layoutHand 拿到真实可用宽度 */
+  min-width: 0;
 }
-.hand-inner { display: flex; align-items: flex-end; }
+.hand-inner { display: flex; align-items: flex-end; min-width: 0; max-width: 100%; }
 
 /* 扑克牌 */
 .pcard {
@@ -155,6 +158,8 @@ body { padding: 16px 8px 24px; }
   .pcard .corner .rn { font-size: 12px; }
   .pcard .corner .suit { font-size: 10px; }
   .pcard .big { font-size: 22px; }
+  /* JS 未及计算时的兜底默认重叠（比桌面更紧，17 张可直接塞下） */
+  .hand-inner .pcard + .pcard { margin-left: var(--ov, -26px); }
   .seat { min-width: 76px; }
   .seat .avatar { width: 38px; height: 38px; font-size: 18px; }
   .seat .name { font-size: 11px; }
@@ -224,8 +229,8 @@ body { padding: 16px 8px 24px; }
   </div>
 </div>
 
-<script src="/js/auth.js"></script>
-<script src="/js/doudizhu.js"></script>
+<script src="/js/auth.js?v=1007"></script>
+<script src="/js/doudizhu.js?v=1007"></script>
 <script>
 const D = window.DouDiZhu;
 const params = new URLSearchParams(location.search);
@@ -416,8 +421,8 @@ function layoutHand(n) {
     const fullW = cardW + (n - 1) * (cardW - 18);
     if (fullW > avail) {
       const step = (avail - cardW) / (n - 1);
-      ov = Math.ceil(step - cardW);          // 向上取整保证总宽不超
-      if (cardW + ov < 16) ov = 16 - cardW;  // 极窄屏兜底：每张至少露 16px
+      // 塞下是硬约束（ceil 保证总宽 ≤ 容器）；露出变窄是可接受的代价
+      ov = Math.ceil(step - cardW);
     }
   }
   el.style.setProperty('--ov', ov + 'px');
@@ -690,9 +695,14 @@ $('btnJoin').onclick = joinByCode;
 GCAuth.renderAuthBar($('authBar'));
 
 // 窗口尺寸变化（转屏等）时重算手牌重叠
-window.addEventListener('resize', () => {
+function relayoutHand() {
   layoutHand(phase === 'dealing' ? (handSizes[mySeat] || 0) : hand.length);
-});
+}
+window.addEventListener('resize', relayoutHand);
+window.addEventListener('orientationchange', relayoutHand);
+// 首帧渲染后再校准一次（防测量时机差异）
+requestAnimationFrame(relayoutHand);
+window.addEventListener('load', relayoutHand);
 
 // 演示模式：无对局时用引擎生成一局静态牌桌，供预览与视觉验证
 function demoMode() {
