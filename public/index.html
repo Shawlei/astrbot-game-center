@@ -3,51 +3,317 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>游戏中心</title>
-<link rel="stylesheet" href="/css/style.css">
+<title>额度游戏中心</title>
+<style>
+:root {
+  --bg: #0a0c16;
+  --panel: rgba(255, 255, 255, .035);
+  --panel-solid: #141726;
+  --border: rgba(255, 255, 255, .09);
+  --text: #eef1ff;
+  --muted: #9aa0b8;
+  --accent: #6c7cff;
+  --accent-2: #b16cff;
+  --red: #ff5d5d;
+  --green: #3ecf8e;
+  --gold: #f6c343;
+  --radius: 18px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  min-height: 100vh;
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- 氛围背景 ---- */
+.bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: var(--bg); }
+.bg::before {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 75%);
+}
+.orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .5; }
+.orb.o1 { width: 520px; height: 520px; background: #6c7cff; top: -220px; left: -120px; animation: drift 26s ease-in-out infinite; }
+.orb.o2 { width: 460px; height: 460px; background: #b16cff; top: -160px; right: -140px; animation: drift 32s ease-in-out infinite reverse; }
+.orb.o3 { width: 420px; height: 420px; background: #ff6a9a; bottom: -220px; left: 50%; transform: translateX(-50%); animation: drift 38s ease-in-out infinite; }
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(50px, 40px) scale(1.1); }
+  66% { transform: translate(-40px, 30px) scale(.95); }
+}
+
+/* ---- 容器 ---- */
+.shell { max-width: 1000px; margin: 0 auto; padding: 0 20px 40px; }
+
+/* ---- 顶部导航条 ---- */
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 6px; flex-wrap: wrap; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand .logo {
+  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 20px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 20px rgba(108,124,255,.35);
+}
+.brand .brand-txt { font-size: 17px; font-weight: 800; letter-spacing: .5px; }
+.brand .brand-sub { font-size: 12px; color: var(--muted); margin-top: -2px; }
+.nav .nav-chip {
+  font-size: 12px; color: var(--gold); background: rgba(246,195,67,.1);
+  border: 1px solid rgba(246,195,67,.28); padding: 5px 12px; border-radius: 999px; font-weight: 600;
+}
+
+/* ---- Hero ---- */
+.hero { text-align: center; padding: 34px 0 8px; }
+.hero h1 {
+  font-size: clamp(30px, 6vw, 46px); font-weight: 900; letter-spacing: 1px;
+  background: linear-gradient(120deg, #ffffff 10%, #b9c4ff 45%, #d9b6ff 75%, #ffffff 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero p { color: var(--muted); font-size: 15px; margin-top: 10px; }
+.hero .chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+.hero .chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--text); background: var(--panel); border: 1px solid var(--border);
+  padding: 7px 15px; border-radius: 999px;
+}
+.hero .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+.dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dot.red { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.dot.gold { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+/* ---- 登录条 ---- */
+.auth-bar {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; margin: 20px 0 6px; backdrop-filter: blur(12px);
+}
+.auth-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.auth-form input {
+  flex: 1; min-width: 120px; background: rgba(255,255,255,.04); color: var(--text);
+  border: 1px solid var(--border); border-radius: 11px; padding: 10px 14px; font-size: 13px; outline: none; transition: border-color .15s;
+}
+.auth-form input::placeholder { color: #6b7086; }
+.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.15); }
+.auth-user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); flex-wrap: wrap; }
+.auth-user b { font-size: 15px; }
+.auth-user .auth-quota {
+  font-size: 12px; color: var(--gold); background: rgba(246,195,67,.1);
+  border: 1px solid rgba(246,195,67,.28); padding: 4px 12px; border-radius: 999px; font-weight: 700;
+}
+.auth-user .auth-btn {
+  margin-left: auto; background: rgba(255,255,255,.05); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 10px; padding: 7px 15px; font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.auth-user .auth-btn:hover { color: var(--text); border-color: var(--red); }
+
+/* ---- 通用按钮 ---- */
+button {
+  background: rgba(255,255,255,.05); color: var(--text); border: 1px solid var(--border);
+  border-radius: 11px; padding: 10px 18px; font-size: 14px; cursor: pointer; transition: all .15s ease;
+  font-family: inherit;
+}
+button:hover { border-color: var(--accent); }
+button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
+  font-weight: 700; color: #fff; box-shadow: 0 6px 18px rgba(108,124,255,.3);
+}
+button.primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(108,124,255,.42); }
+button:active { transform: translateY(0); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- 分区 ---- */
+.section { margin-top: 30px; }
+.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.section-head .ico {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.section-head .ttl { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+.section-head .cnt { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.section-head::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); margin-left: 4px; }
+
+/* ---- 游戏卡片 ---- */
+.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 14px; }
+.game-card {
+  position: relative; display: flex; align-items: center; gap: 13px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 15px; cursor: pointer; text-decoration: none; color: var(--text);
+  overflow: hidden; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  animation: rise .5s both;
+}
+.game-card::before {
+  content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity .18s ease;
+  background: radial-gradient(120% 130% at 0% 0%, var(--tint, transparent), transparent 60%);
+}
+.game-card:hover {
+  transform: translateY(-3px); border-color: var(--hc, var(--accent));
+  box-shadow: 0 14px 34px -12px var(--hs, rgba(0,0,0,.6));
+}
+.game-card:hover::before { opacity: 1; }
+.game-card .gc-icon {
+  position: relative; width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 26px;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  box-shadow: 0 6px 16px -4px var(--hs, rgba(0,0,0,.5));
+}
+.game-card .gc-body { position: relative; min-width: 0; flex: 1; }
+.game-card .gc-name { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 7px; }
+.game-card .gc-tag {
+  font-size: 10px; font-weight: 700; color: var(--c1); background: var(--tint, rgba(255,255,255,.06));
+  border: 1px solid var(--hc, transparent); padding: 2px 7px; border-radius: 6px; letter-spacing: .3px;
+}
+.game-card .gc-desc { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.game-card .gc-go {
+  position: relative; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--muted); font-size: 15px;
+  background: rgba(255,255,255,.05); border: 1px solid var(--border); transition: all .18s;
+}
+.game-card:hover .gc-go { color: #fff; background: linear-gradient(135deg, var(--c1), var(--c2)); border-color: transparent; transform: translateX(2px); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 股市大卡（单独一栏时拉通） */
+.game-card.wide { grid-column: 1 / -1; }
+
+/* ---- 房间码入口 ---- */
+.room-card {
+  position: relative; margin-top: 16px; border-radius: var(--radius); padding: 1px;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2), #ff6a9a);
+  box-shadow: 0 12px 34px -14px rgba(108,124,255,.5);
+}
+.room-card .inner {
+  background: #12141f; border-radius: calc(var(--radius) - 1px); padding: 18px 20px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.room-card .rc-icon { font-size: 26px; }
+.room-card .rc-title { font-size: 15px; font-weight: 800; }
+.room-card .rc-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.room-card .rc-sub b { color: var(--text); font-weight: 600; }
+.room-card .rc-form { display: flex; gap: 8px; flex: 1; min-width: 260px; }
+.room-card input {
+  flex: 1; min-width: 140px; background: rgba(255,255,255,.04); color: var(--text);
+  border: 1px solid var(--border); border-radius: 11px; padding: 11px 14px; font-size: 14px; outline: none;
+  letter-spacing: 1px; text-transform: uppercase; transition: border-color .15s;
+}
+.room-card input::placeholder { color: #6b7086; letter-spacing: 0; }
+.room-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.15); }
+
+/* ---- 排行榜 ---- */
+.leaderboard {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; margin-top: 6px; backdrop-filter: blur(12px);
+}
+.lb-tabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 16px; }
+.lb-tab {
+  background: rgba(255,255,255,.04); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all .15s ease; font-family: inherit;
+}
+.lb-tab:hover { color: var(--text); border-color: var(--accent); }
+.lb-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+  border-color: transparent; font-weight: 700;
+}
+.lb-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.lb-row:last-child { border-bottom: none; }
+.lb-rank {
+  width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; background: rgba(255,255,255,.05); color: var(--muted); flex-shrink: 0;
+}
+.lb-rank.top { background: linear-gradient(135deg, #ffd76a, #f5a623); color: #241a00; box-shadow: 0 4px 12px -3px rgba(245,166,35,.5); }
+.lb-rank.top.silver { background: linear-gradient(135deg, #e6ecf7, #9fb0c8); color: #222b3d; box-shadow: 0 4px 12px -3px rgba(159,176,200,.5); }
+.lb-rank.top.bronze { background: linear-gradient(135deg, #e8b48a, #c07a45); color: #33200c; box-shadow: 0 4px 12px -3px rgba(192,122,69,.5); }
+.lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
+.lb-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.lb-val { color: var(--gold); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lb-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 0; }
+
+/* ---- 页脚 ---- */
+.footer { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 34px; line-height: 1.7; }
+.footer b { color: var(--text); font-weight: 600; }
+
+@media (max-width: 560px) {
+  .shell { padding: 0 14px 32px; }
+  .games { grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); }
+  .room-card .rc-form { flex-direction: column; }
+  .room-card input { width: 100%; }
+  .lb-sub { display: none; }
+}
+</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topbar">
-    <div class="title">🎮 额度游戏中心</div>
-    <span class="badge">真实额度 · 单机 / 联机 / 股市</span>
-  </div>
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+
+<div class="shell">
+  <nav class="nav">
+    <div class="brand">
+      <div class="logo">🎮</div>
+      <div>
+        <div class="brand-txt">额度游戏中心</div>
+        <div class="brand-sub">真实额度 · 赢了返额 · 输了扣额</div>
+      </div>
+    </div>
+    <span class="nav-chip">✦ 与机器人账号互通</span>
+  </nav>
+
+  <header class="hero">
+    <h1>额度游戏中心</h1>
+    <p>单机小游戏 · 联机对战 · 模拟股市，一个入口畅玩</p>
+    <div class="chips">
+      <span class="chip"><span class="dot gold"></span>真实额度结算</span>
+      <span class="chip"><span class="dot green"></span>联机真人对战</span>
+      <span class="chip"><span class="dot red"></span>24h 模拟股市</span>
+    </div>
+  </header>
 
   <div id="authBar"></div>
 
-  <div class="card" style="margin-bottom:6px">
-    <div style="font-size:13px;color:var(--muted);line-height:1.7">
-      使用你的 <b style="color:var(--text)">NewAPI 账号</b>登录后即可开始（与机器人绑定账号一致），
-      所有游戏用<b style="color:var(--text)">站点真实额度</b>结算：<b style="color:var(--green)">赢了返额度、输了扣额度</b>。
-      余额查询请回群发 <b style="color:var(--text)">%余额</b>。
+  <section class="section">
+    <div class="section-head"><div class="ico">⚔️</div><div class="ttl">联机对战</div><div class="cnt" id="pvpCnt"></div></div>
+    <div class="games" id="pvpGames"></div>
+    <div class="room-card">
+      <div class="inner">
+        <div class="rc-icon">🚪</div>
+        <div style="min-width:0;flex:0 0 auto">
+          <div class="rc-title">凭房间码进入对战</div>
+          <div class="rc-sub">机器人在群里匹配成功后私聊发码：<b>%斗地主</b> / <b>%象棋对战</b> / <b>%五子棋对战</b></div>
+        </div>
+        <div class="rc-form">
+          <input id="roomCode" type="text" placeholder="输入房间码（如 ABC123）" maxlength="6" autocomplete="off">
+          <button id="btnJoin" class="primary">进入对战</button>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="section-title">🎰 单机小游戏</div>
-  <div class="games" id="soloGames"></div>
+  <section class="section">
+    <div class="section-head"><div class="ico">🎰</div><div class="ttl">单机小游戏</div><div class="cnt" id="soloCnt"></div></div>
+    <div class="games" id="soloGames"></div>
+  </section>
 
-  <div class="section-title">📈 模拟股市</div>
-  <div class="games" id="marketGames"></div>
+  <section class="section">
+    <div class="section-head"><div class="ico">📈</div><div class="ttl">模拟股市</div><div class="cnt" id="marketCnt"></div></div>
+    <div class="games" id="marketGames"></div>
+  </section>
 
-  <div class="section-title">⚔️ 联机对战</div>
-  <div class="card" style="margin-bottom:6px">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="roomCode" type="text" placeholder="输入房间码（如 ABC123）" maxlength="6" autocomplete="off" style="flex:1;min-width:160px;padding:10px 12px;border:1px solid var(--line,#333);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111)">
-      <button id="btnJoin" class="primary">凭房间码进入对战</button>
+  <section class="section">
+    <div class="section-head"><div class="ico">🏆</div><div class="ttl">排行榜</div></div>
+    <div class="leaderboard">
+      <div class="lb-tabs" id="lbTabs"></div>
+      <div id="lbList"></div>
     </div>
-    <div style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.7">
-      联机对战房间码由机器人在群里匹配成功后私聊发送：在群里发 <b style="color:var(--text)">%斗地主</b> / <b style="color:var(--text)">%象棋对战</b> / <b style="color:var(--text)">%五子棋对战</b> 匹配。
-    </div>
-  </div>
-  <div class="games" id="pvpGames"></div>
+  </section>
 
-  <div class="section-title">🏆 排行榜</div>
-  <div class="leaderboard">
-    <div class="lb-tabs" id="lbTabs"></div>
-    <div id="lbList"></div>
-  </div>
-
-  <div class="hint" id="hint">本页为大厅入口；联机对战请在群里发 %斗地主 / %象棋对战 / %五子棋对战 匹配，凭机器人私聊的房间码进入。</div>
+  <div class="footer" id="hint">本页为大厅入口；联机对战请在群里发 <b>%斗地主</b> / <b>%象棋对战</b> / <b>%五子棋对战</b> 匹配，凭机器人私聊的房间码进入。</div>
 </div>
 
 <script src="/js/auth.js"></script>
@@ -55,44 +321,51 @@
 const gid = new URLSearchParams(location.search).get('gid');
 const q = gid ? ('?gid=' + encodeURIComponent(gid)) : '';
 
-const SOLO_GAMES = [
-  { href: '/snake.html' + q, emoji: '🐍', name: '贪吃蛇', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
-  { href: '/breakout.html' + q, emoji: '🎮', name: '打砖块', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
-  { href: '/twentyfour.html' + q, emoji: '🧮', name: '24点', desc: '四张牌算出 24，答对赢额、答错扣额。' },
-  { href: '/dice.html' + q, emoji: '🎲', name: '猜大小', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
-  { href: '/lottery.html' + q, emoji: '🎟️', name: '双色球', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
-];
-const MARKET_GAMES = [
-  { href: '/market.html' + q, emoji: '📈', name: '虚拟股市', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
-];
-const PVP_GAMES = [
-  { href: '/doudizhu.html' + q, emoji: '🃏', name: '斗地主', desc: '三人一桌，叫地主/加倍/炸弹，经典斗地主规则。' },
-  { href: '/xiangqi.html' + q, emoji: '♟️', name: '中国象棋', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
-  { href: '/gomoku.html' + q, emoji: '⚫', name: '五子棋', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
-];
-
+// 每款游戏的视觉元信息：图标 / 渐变色 / 标签
 const GAME_META = {
-  doudizhu: { emoji: '🃏', desc: '三人一桌，叫地主/加倍/炸弹，经典斗地主规则。' },
-  xiangqi: { emoji: '♟️', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
-  gomoku: { emoji: '⚫', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
-  snake: { emoji: '🐍', desc: '门票入场，吃食越多奖励越高，方向键/滑动操控。' },
-  breakout: { emoji: '🎮', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
-  twentyfour: { emoji: '🧮', desc: '四张牌算出 24，答对赢额、答错扣额。' },
-  dice: { emoji: '🎲', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
-  lottery: { emoji: '🎟️', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
-  market: { emoji: '📈', desc: '虚拟股票实时波动，低买高卖。' },
+  doudizhu:  { icon: '🃏', c1: '#ff6a4d', c2: '#ff2d78', tint: 'rgba(255,90,80,.14)',  hc: 'rgba(255,90,80,.6)',  tag: '3人', desc: '三人一桌，叫地主 / 加倍 / 炸弹，经典斗地主规则。' },
+  xiangqi:   { icon: '♟️', c1: '#f5a623', c2: '#e07b39', tint: 'rgba(245,166,35,.14)', hc: 'rgba(245,166,35,.6)', tag: '2人', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
+  gomoku:    { icon: '⚫', c1: '#4dd0e1', c2: '#26a69a', tint: 'rgba(77,208,225,.14)',  hc: 'rgba(77,208,225,.6)',  tag: '2人', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
+  snake:     { icon: '🐍', c1: '#66bb6a', c2: '#2e7d32', tint: 'rgba(102,187,106,.14)', hc: 'rgba(102,187,106,.6)', tag: '单机', desc: '门票入场，吃食越多奖励越高，方向键 / 滑动操控。' },
+  breakout:  { icon: '🎮', c1: '#42a5f5', c2: '#1e88e5', tint: 'rgba(66,165,245,.14)',  hc: 'rgba(66,165,245,.6)',  tag: '单机', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
+  twentyfour:{ icon: '🧮', c1: '#ab47bc', c2: '#7b1fa2', tint: 'rgba(171,71,188,.14)',  hc: 'rgba(171,71,188,.6)',  tag: '单机', desc: '四张牌算出 24，答对赢额、答错扣额。' },
+  dice:      { icon: '🎲', c1: '#ec407a', c2: '#d81b60', tint: 'rgba(236,64,122,.14)',  hc: 'rgba(236,64,122,.6)',  tag: '单机', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
+  lottery:   { icon: '🎟️', c1: '#ffd54f', c2: '#f57f17', tint: 'rgba(255,213,79,.14)',  hc: 'rgba(255,213,79,.6)',  tag: '单机', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
+  market:    { icon: '📈', c1: '#ff5252', c2: '#c62828', tint: 'rgba(255,82,82,.14)',   hc: 'rgba(255,82,82,.6)',   tag: '24h', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
 };
 
-function renderGames(el, games) {
-  el.innerHTML = '';
-  for (const g of games) {
-    const a = document.createElement('a');
-    a.className = 'game-card';
-    a.href = g.href;
-    a.innerHTML = '<div class="emoji">' + g.emoji + '</div><div class="name">' + g.name + '</div><div class="desc">' + g.desc + '</div>';
-    el.appendChild(a);
-  }
+// 静态兜底清单（/api/games 失败时使用）
+const STATIC = {
+  pvp:    [ ['doudizhu','斗地主'], ['xiangqi','中国象棋'], ['gomoku','五子棋'] ],
+  solo:   [ ['snake','贪吃蛇'], ['breakout','打砖块'], ['twentyfour','24点'], ['dice','猜大小'], ['lottery','双色球'] ],
+  market: [ ['market','虚拟股市'] ],
+};
+
+function cardHTML(type, name, url) {
+  const m = GAME_META[type] || { icon: '🎮', c1: '#6c7cff', c2: '#b16cff', tint: 'rgba(108,124,255,.14)', hc: 'rgba(108,124,255,.6)', tag: '', desc: '' };
+  const style = '--c1:' + m.c1 + ';--c2:' + m.c2 + ';--tint:' + m.tint + ';--hc:' + m.hc + ';--hs:' + m.c1 + '66;';
+  return '<a class="game-card" href="/' + url + q + '" style="' + style + '">' +
+    '<div class="gc-icon">' + m.icon + '</div>' +
+    '<div class="gc-body"><div class="gc-name">' + name +
+      (m.tag ? '<span class="gc-tag">' + m.tag + '</span>' : '') +
+    '</div><div class="gc-desc">' + m.desc + '</div></div>' +
+    '<div class="gc-go">›</div></a>';
 }
+
+function renderGames(el, items, wide) {
+  el.innerHTML = '';
+  items.forEach((g, i) => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = cardHTML(g.type, g.name, g.url);
+    const node = wrap.firstElementChild;
+    if (!node) return;
+    node.style.animationDelay = (i * 50) + 'ms';
+    if (wide && i === 0) node.classList.add('wide');
+    el.appendChild(node);
+  });
+}
+
+function setCnt(id, n) { const e = document.getElementById(id); if (e) e.textContent = n ? n + ' 款' : ''; }
 
 // 优先按服务端 /api/games 动态渲染（禁用游戏自动隐藏），失败则回退到静态清单
 async function loadGames() {
@@ -102,15 +375,21 @@ async function loadGames() {
   try {
     const j = await (await fetch('/api/games')).json();
     const list = (j.list || []).filter((g) => g.enabled !== false);
-    const byCat = (c) => list.filter((g) => g.category === c)
-      .map((g) => ({ href: '/' + g.url + q, emoji: (GAME_META[g.type] || {}).emoji || '🎮', name: g.name, desc: (GAME_META[g.type] || {}).desc || '' }));
-    renderGames(soloEl, byCat('solo'));
-    renderGames(marketEl, byCat('market'));
-    renderGames(pvpEl, byCat('pvp'));
+    const byCat = (c) => list.filter((g) => g.category === c);
+    const pvp = byCat('pvp'), solo = byCat('solo'), market = byCat('market');
+    renderGames(pvpEl, pvp, false);
+    renderGames(soloEl, solo, false);
+    renderGames(marketEl, market, market.length <= 1);
+    setCnt('pvpCnt', pvp.length);
+    setCnt('soloCnt', solo.length);
+    setCnt('marketCnt', market.length);
   } catch (e) {
-    renderGames(soloEl, SOLO_GAMES);
-    renderGames(marketEl, MARKET_GAMES);
-    renderGames(pvpEl, PVP_GAMES);
+    renderGames(pvpEl, STATIC.pvp.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), false);
+    renderGames(soloEl, STATIC.solo.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), false);
+    renderGames(marketEl, STATIC.market.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), true);
+    setCnt('pvpCnt', STATIC.pvp.length);
+    setCnt('soloCnt', STATIC.solo.length);
+    setCnt('marketCnt', STATIC.market.length);
   }
 }
 loadGames();
@@ -162,8 +441,9 @@ LB.forEach((t, i) => {
 function lbRow(rank, name, val, sub) {
   const div = document.createElement('div');
   div.className = 'lb-row';
+  const medal = rank === 0 ? 'top' : rank === 1 ? 'top silver' : rank === 2 ? 'top bronze' : '';
   div.innerHTML =
-    '<div class="lb-rank' + (rank < 3 ? ' top' : '') + '">' + (rank + 1) + '</div>' +
+    '<div class="lb-rank ' + medal + '">' + (rank < 3 ? ['🥇','🥈','🥉'][rank] : rank + 1) + '</div>' +
     '<div class="lb-name">' + escapeHtml(name) + '</div>' +
     (sub ? '<div class="lb-sub">' + sub + '</div>' : '') +
     (val ? '<div class="lb-val">' + val + '</div>' : '');
@@ -204,7 +484,7 @@ function escapeHtml(s) {
 }
 
 if (gid) {
-  document.getElementById('hint').textContent = '进入游戏后使用 NewAPI 账号登录即可开始；邀请对战会由机器人回到群里广播。';
+  document.getElementById('hint').innerHTML = '进入游戏后使用 <b>NewAPI 账号</b>登录即可开始；邀请对战会由机器人回到群里广播。';
 }
 loadLB(0);
 </script>
