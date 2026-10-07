@@ -37,11 +37,11 @@
       <a class="back-btn" href="/" id="backBtn">← 大厅</a>
       <div class="title">🍉 合成大西瓜</div>
     </div>
-    <span class="badge" id="gameBadge">免费玩 · 合成高级水果得额度</span>
+    <span class="badge" id="gameBadge">免费玩 · 按得分发额度</span>
   </div>
   <div id="authBar"></div>
   <div class="card">
-    <div class="meta">两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成出菠萝/蜜瓜/西瓜可领小额额度奖励（每日封顶）。</div>
+    <div class="meta">两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成到 <b>菠萝(9级)</b> 及以上即可领额度，<b>奖励按本局得分计算</b>（每日封顶）。</div>
 
     <div class="hud">
       <div class="score-box">
@@ -69,7 +69,7 @@
         <button id="btnStart" class="primary">开始游戏</button>
         <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
       </div>
-      <div class="wm-tip">操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成出 <b>菠萝(9级)</b> / <b>蜜瓜(10级)</b> / <b>西瓜(11级)</b> 才有额度奖励。</div>
+      <div class="wm-tip">操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成到 <b>菠萝(9级)</b> 及以上才能领奖，奖励按本局得分结算（约每 400 分 $1，单局保底 $0.5、封顶 $5）。</div>
     </div>
 
     <div class="result-box" id="result" style="display:none"></div>
@@ -128,103 +128,289 @@ function randLevel() { const r = Math.random(); return r < 0.30 ? 1 : r < 0.55 ?
 function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
 
 // ---- 水果绘制 ----
-function fruitColors(level) {
+function fruitPalette(level) {
   switch (level) {
-    case 1: return ['#ff7a6e', '#d64541'];
-    case 2: return ['#ff8a80', '#e53935'];
-    case 3: return ['#b984d4', '#8e44ad'];
-    case 4: return ['#ffc15e', '#f0932b'];
-    case 5: return ['#ffa06e', '#e67e22'];
-    case 6: return ['#ff7a66', '#c0392b'];
-    case 7: return ['#d4e795', '#8fae4f'];
-    case 8: return ['#ffd6c8', '#f0a08a'];
-    case 9: return ['#ffe266', '#f1c40f'];
-    case 10: return ['#b8e38a', '#6f9e45'];
-    case 11: return ['#4caf50', '#2e7d32'];
-    default: return ['#aaa', '#777'];
+    case 1:  return { c1: '#ff8a80', c2: '#ff5252', c3: '#c62828', leaf: '#66bb6a' }; // 樱桃
+    case 2:  return { c1: '#ff5f66', c2: '#ef3b46', c3: '#c0182b', leaf: '#43a047' }; // 草莓
+    case 3:  return { c1: '#dcb0f5', c2: '#a66bd6', c3: '#6f3598', leaf: '#8bc34a' }; // 葡萄
+    case 4:  return { c1: '#ffd180', c2: '#ffa726', c3: '#e8600c', leaf: '#66bb6a' }; // 橙子
+    case 5:  return { c1: '#ffb74d', c2: '#ff8a3c', c3: '#df5a00', leaf: '#558b2f' }; // 柿子
+    case 6:  return { c1: '#ff8a80', c2: '#ef5350', c3: '#b71c1c', leaf: '#689f38' }; // 苹果
+    case 7:  return { c1: '#fff59d', c2: '#e6d84c', c3: '#a99a0e', leaf: '#66bb6a' }; // 梨
+    case 8:  return { c1: '#ffd0bd', c2: '#ff9c80', c3: '#ef5350', leaf: '#66bb6a' }; // 桃子
+    case 9:  return { c1: '#ffe082', c2: '#ffc107', c3: '#d98e00', leaf: '#2e7d32' }; // 菠萝
+    case 10: return { c1: '#e3f2c1', c2: '#aed581', c3: '#5e8e33', leaf: '#33691e' }; // 蜜瓜
+    case 11: return { c1: '#81c784', c2: '#43a047', c3: '#1b5e20', leaf: '#1b5e20' }; // 西瓜
+    default: return { c1: '#bbb', c2: '#999', c3: '#666', leaf: '#8bc34a' };
   }
 }
 
-function drawFruit(c, x, y, r, level) {
-  const [c1, c2] = fruitColors(level);
-  const g = c.createRadialGradient(x - r * 0.35, y - r * 0.42, r * 0.08, x, y, r);
-  g.addColorStop(0, c1);
-  g.addColorStop(1, c2);
-  c.fillStyle = g;
+// 心形（草莓 / 桃子主体）
+function heartPath(c, x, y, r) {
   c.beginPath();
-  c.arc(x, y, r, 0, Math.PI * 2);
-  c.fill();
-  c.strokeStyle = 'rgba(0,0,0,.18)';
-  c.lineWidth = 1.5;
-  c.stroke();
+  c.moveTo(x, y + r * 0.95);
+  c.bezierCurveTo(x - r * 1.15, y + r * 0.12, x - r * 0.85, y - r * 0.98, x, y - r * 0.26);
+  c.bezierCurveTo(x + r * 0.85, y - r * 0.98, x + r * 1.15, y + r * 0.12, x, y + r * 0.95);
+  c.closePath();
+}
 
-  // 顶部高光
-  c.fillStyle = 'rgba(255,255,255,.45)';
+// 梨形（上窄下宽）
+function pearPath(c, x, y, r) {
   c.beginPath();
-  c.ellipse(x - r * 0.32, y - r * 0.44, r * 0.30, r * 0.18, -0.65, 0, Math.PI * 2);
-  c.fill();
+  c.moveTo(x, y - r);
+  c.bezierCurveTo(x + r * 0.58, y - r * 0.72, x + r * 0.78, y - r * 0.28, x + r * 0.64, y + r * 0.42);
+  c.bezierCurveTo(x + r * 0.55, y + r * 0.98, x - r * 0.55, y + r * 0.98, x - r * 0.64, y + r * 0.42);
+  c.bezierCurveTo(x - r * 0.78, y - r * 0.28, x - r * 0.58, y - r * 0.72, x, y - r);
+  c.closePath();
+}
 
-  // 底部暗部
-  c.fillStyle = 'rgba(0,0,0,.10)';
-  c.beginPath();
-  c.ellipse(x + r * 0.15, y + r * 0.55, r * 0.55, r * 0.28, 0.3, 0, Math.PI * 2);
-  c.fill();
-
-  if (level === 11) { // 西瓜条纹
-    c.save();
-    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
-    c.strokeStyle = 'rgba(18,55,22,.5)';
-    c.lineWidth = r * 0.14;
-    c.lineCap = 'round';
-    for (let i = -1; i <= 1; i++) {
-      c.beginPath();
-      c.moveTo(x + i * r * 0.42, y - r);
-      c.quadraticCurveTo(x + i * r * 0.62, y, x + i * r * 0.42, y + r);
-      c.stroke();
-    }
-    c.restore();
-  } else if (level === 2) { // 草莓籽
-    c.fillStyle = 'rgba(255,240,200,.85)';
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      const px = x + Math.cos(a) * r * 0.55;
-      const py = y + Math.sin(a) * r * 0.55;
-      c.beginPath(); c.ellipse(px, py, r * 0.045, r * 0.07, a, 0, Math.PI * 2); c.fill();
-    }
-  } else if (level === 4) { // 橙子纹理点
-    c.fillStyle = 'rgba(200,110,20,.28)';
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2 + 0.3;
-      const px = x + Math.cos(a) * r * 0.5;
-      const py = y + Math.sin(a) * r * 0.5;
-      c.beginPath(); c.arc(px, py, r * 0.05, 0, Math.PI * 2); c.fill();
-    }
-  } else if (level === 9) { // 菠萝网格
-    c.save();
-    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
-    c.strokeStyle = 'rgba(180,120,20,.35)';
-    c.lineWidth = 1.4;
-    const step = r * 0.32;
-    for (let k = -3; k <= 3; k++) {
-      c.beginPath(); c.moveTo(x + k * step - r, y - r); c.lineTo(x + k * step + r, y + r); c.stroke();
-      c.beginPath(); c.moveTo(x - r, y + k * step + r); c.lineTo(x + r, y + k * step - r); c.stroke();
-    }
-    c.restore();
-  } else if (level === 10) { // 蜜瓜网纹
-    c.save();
-    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
-    c.strokeStyle = 'rgba(80,130,50,.30)';
-    c.lineWidth = 1.2;
-    for (let k = -4; k <= 4; k++) {
-      c.beginPath(); c.arc(x, y, r * 0.16 + Math.abs(k) * r * 0.2, 0, Math.PI * 2); c.stroke();
-    }
-    c.restore();
+// 顶部叶冠（草莓 / 菠萝共用）
+function leafCrown(c, x, y, s, color) {
+  c.fillStyle = color;
+  for (let i = -2; i <= 2; i++) {
+    c.beginPath();
+    c.moveTo(x, y);
+    c.quadraticCurveTo(x + i * s * 0.6, y - s * 1.5, x + i * s * 1.1, y - s * 0.8);
+    c.quadraticCurveTo(x + i * s * 0.4, y - s * 0.3, x, y);
+    c.fill();
   }
+}
+
+// 通用圆体：多层渐变 + 描边 + 边缘内发光 + 高光 + 反光点
+function roundBody(c, x, y, r, P) {
+  const g = c.createRadialGradient(x - r * 0.35, y - r * 0.42, r * 0.1, x, y, r * 1.02);
+  g.addColorStop(0, P.c1);
+  g.addColorStop(0.55, P.c2);
+  g.addColorStop(1, P.c3);
+  c.fillStyle = g;
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.22)';
+  c.lineWidth = Math.max(1, r * 0.04);
+  c.stroke();
+  const eg = c.createRadialGradient(x, y, r * 0.55, x, y, r);
+  eg.addColorStop(0, 'rgba(0,0,0,0)');
+  eg.addColorStop(1, 'rgba(0,0,0,.18)');
+  c.fillStyle = eg;
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.65)';
+  c.beginPath();
+  c.ellipse(x - r * 0.34, y - r * 0.44, r * 0.30, r * 0.16, -0.6, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = 'rgba(255,255,255,.9)';
+  c.beginPath(); c.arc(x - r * 0.44, y - r * 0.52, r * 0.055, 0, Math.PI * 2); c.fill();
+}
+
+function drawCherry(c, x, y, r, P) {
+  const off = r * 0.34, br = r * 0.68, by = y + r * 0.08;
+  c.strokeStyle = '#5d4037';
+  c.lineWidth = Math.max(1.5, r * 0.09);
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x - off, y - r * 0.25);
+  c.quadraticCurveTo(x, y - r * 1.15, x + off, y - r * 0.25);
+  c.stroke();
+  roundBody(c, x - off, by, br, P);
+  roundBody(c, x + off, by, br, P);
+  c.fillStyle = P.leaf;
+  c.beginPath();
+  c.ellipse(x, y - r * 1.05, r * 0.32, r * 0.13, -0.4, 0, Math.PI * 2);
+  c.fill();
+}
+
+function drawStrawberry(c, x, y, r, P) {
+  const g = c.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y + r * 0.1, r * 1.2);
+  g.addColorStop(0, P.c1); g.addColorStop(0.5, P.c2); g.addColorStop(1, P.c3);
+  c.fillStyle = g;
+  heartPath(c, x, y + r * 0.06, r * 1.0);
+  c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.22)';
+  c.lineWidth = Math.max(1, r * 0.04);
+  c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.5)';
+  c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.34, r * 0.2, r * 0.11, -0.55, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(255,235,170,.92)';
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.3;
+    const px = x + Math.cos(a) * r * 0.5;
+    const py = y + Math.sin(a) * r * 0.8 * 0.5 + r * 0.05;
+    c.beginPath(); c.ellipse(px, py, r * 0.045, r * 0.06, a, 0, Math.PI * 2); c.fill();
+  }
+  leafCrown(c, x, y - r * 0.42, r * 0.5, P.leaf);
+}
+
+function drawPear(c, x, y, r, P) {
+  const g = c.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.1, x, y + r * 0.15, r * 1.15);
+  g.addColorStop(0, P.c1); g.addColorStop(0.55, P.c2); g.addColorStop(1, P.c3);
+  c.fillStyle = g;
+  pearPath(c, x, y, r);
+  c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.2)';
+  c.lineWidth = Math.max(1, r * 0.04);
+  c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.6)';
+  c.beginPath(); c.ellipse(x - r * 0.32, y - r * 0.45, r * 0.24, r * 0.13, -0.5, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(150,130,20,.35)';
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.7;
+    c.beginPath(); c.arc(x + Math.cos(a) * r * 0.45, y + Math.sin(a) * r * 0.4 + r * 0.2, r * 0.035, 0, Math.PI * 2); c.fill();
+  }
+  c.strokeStyle = '#6d4c41';
+  c.lineWidth = Math.max(1.2, r * 0.06);
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x, y - r * 0.85);
+  c.quadraticCurveTo(x + r * 0.1, y - r * 1.15, x + r * 0.18, y - r * 1.1);
+  c.stroke();
+}
+
+function drawPeach(c, x, y, r, P) {
+  const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y + r * 0.1, r * 1.15);
+  g.addColorStop(0, P.c1); g.addColorStop(0.5, P.c2); g.addColorStop(1, P.c3);
+  c.fillStyle = g;
+  heartPath(c, x, y + r * 0.04, r * 0.98);
+  c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.2)';
+  c.lineWidth = Math.max(1, r * 0.04);
+  c.stroke();
+  c.strokeStyle = 'rgba(170,60,40,.32)';
+  c.lineWidth = r * 0.05;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x, y - r * 0.35);
+  c.quadraticCurveTo(x + r * 0.14, y + r * 0.12, x, y + r * 0.9);
+  c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.5)';
+  c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.3, r * 0.2, r * 0.11, -0.5, 0, Math.PI * 2); c.fill();
+  c.fillStyle = P.leaf;
+  c.beginPath(); c.ellipse(x + r * 0.3, y - r * 0.55, r * 0.3, r * 0.11, -0.7, 0, Math.PI * 2); c.fill();
+}
+
+function drawPineapple(c, x, y, r, P) {
+  const bx = x, by = y + r * 0.06;
+  const g = c.createRadialGradient(bx - r * 0.3, by - r * 0.35, r * 0.1, bx, by, r * 1.0);
+  g.addColorStop(0, P.c1); g.addColorStop(0.55, P.c2); g.addColorStop(1, P.c3);
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(bx, by, r * 0.94, r * 0.88, 0, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.22)';
+  c.lineWidth = Math.max(1, r * 0.04);
+  c.stroke();
+  c.save();
+  c.beginPath(); c.ellipse(bx, by, r * 0.94, r * 0.88, 0, 0, Math.PI * 2); c.clip();
+  c.strokeStyle = 'rgba(160,100,10,.32)';
+  c.lineWidth = Math.max(1, r * 0.025);
+  const step = r * 0.30;
+  for (let k = -4; k <= 4; k++) {
+    c.beginPath(); c.moveTo(bx + k * step - r, by - r); c.lineTo(bx + k * step + r, by + r); c.stroke();
+    c.beginPath(); c.moveTo(bx - r, by + k * step + r); c.lineTo(bx + r, by + k * step - r); c.stroke();
+  }
+  c.restore();
+  c.fillStyle = 'rgba(255,255,255,.4)';
+  c.beginPath(); c.ellipse(bx - r * 0.3, by - r * 0.4, r * 0.24, r * 0.13, -0.55, 0, Math.PI * 2); c.fill();
+  leafCrown(c, bx, by - r * 0.66, r * 0.55, P.leaf);
+}
+
+function grapeGloss(c, x, y, r, P) {
+  c.fillStyle = '#5d4037';
+  c.beginPath(); c.arc(x, y - r * 0.82, r * 0.09, 0, Math.PI * 2); c.fill();
+}
+
+function orangeDots(c, x, y, r, P) {
+  c.save();
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+  c.fillStyle = 'rgba(190,90,10,.22)';
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.4;
+    const px = x + Math.cos(a) * r * 0.5, py = y + Math.sin(a) * r * 0.5;
+    c.beginPath(); c.arc(px, py, r * 0.05, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+  c.fillStyle = '#6d4c41';
+  c.beginPath(); c.arc(x, y - r * 0.82, r * 0.08, 0, Math.PI * 2); c.fill();
+}
+
+function persimmonCalyx(c, x, y, r, P) {
+  c.fillStyle = P.leaf;
+  c.beginPath(); c.arc(x, y - r * 0.72, r * 0.22, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(46,92,20,.85)';
+  for (let i = 0; i < 4; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 2 + Math.PI / 4;
+    c.beginPath();
+    c.ellipse(x + Math.cos(a) * r * 0.16, y - r * 0.72 + Math.sin(a) * r * 0.16, r * 0.16, r * 0.08, a, 0, Math.PI * 2);
+    c.fill();
+  }
+}
+
+function appleStalk(c, x, y, r, P) {
+  c.strokeStyle = '#6d4c41';
+  c.lineWidth = Math.max(1.2, r * 0.06);
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x, y - r * 0.8);
+  c.quadraticCurveTo(x + r * 0.18, y - r * 1.15, x + r * 0.3, y - r * 1.05);
+  c.stroke();
+  c.fillStyle = P.leaf;
+  c.beginPath(); c.ellipse(x + r * 0.32, y - r * 1.0, r * 0.26, r * 0.1, -0.6, 0, Math.PI * 2); c.fill();
+}
+
+function melonNet(c, x, y, r, P) {
+  c.save();
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+  c.strokeStyle = 'rgba(70,110,40,.28)';
+  c.lineWidth = Math.max(1, r * 0.03);
+  for (let k = -3; k <= 3; k++) {
+    c.beginPath();
+    c.moveTo(x + k * r * 0.28, y - r);
+    c.quadraticCurveTo(x + k * r * 0.42, y, x + k * r * 0.28, y + r);
+    c.stroke();
+  }
+  for (let k = -3; k <= 3; k++) {
+    c.beginPath();
+    c.moveTo(x - r, y + k * r * 0.26);
+    c.quadraticCurveTo(x, y + k * r * 0.4, x + r, y + k * r * 0.26);
+    c.stroke();
+  }
+  c.restore();
+}
+
+function watermelonStripes(c, x, y, r, P) {
+  c.save();
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+  c.strokeStyle = 'rgba(10,60,18,.55)';
+  c.lineWidth = r * 0.14;
+  c.lineCap = 'round';
+  for (let i = -2; i <= 2; i++) {
+    const cx = x + i * r * 0.44;
+    c.beginPath();
+    c.moveTo(cx, y - r);
+    c.quadraticCurveTo(cx + i * r * 0.1, y, cx, y + r);
+    c.stroke();
+  }
+  c.restore();
+}
+
+function drawFruit(c, x, y, r, level) {
+  c.save();
+  const P = fruitPalette(level);
+  switch (level) {
+    case 1: drawCherry(c, x, y, r, P); break;
+    case 2: drawStrawberry(c, x, y, r, P); break;
+    case 7: drawPear(c, x, y, r, P); break;
+    case 8: drawPeach(c, x, y, r, P); break;
+    case 9: drawPineapple(c, x, y, r, P); break;
+    default: roundBody(c, x, y, r, P); break;
+  }
+  if (level === 3) grapeGloss(c, x, y, r, P);
+  else if (level === 4) orangeDots(c, x, y, r, P);
+  else if (level === 5) persimmonCalyx(c, x, y, r, P);
+  else if (level === 6) appleStalk(c, x, y, r, P);
+  else if (level === 10) melonNet(c, x, y, r, P);
+  else if (level === 11) watermelonStripes(c, x, y, r, P);
+  c.restore();
 }
 
 // ---- 物理 ----
 function spawnParticles(x, y, level) {
-  const [c1] = fruitColors(level);
+  const c1 = fruitPalette(level).c2;
   for (let i = 0; i < 10; i++) {
     const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 3;
     particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, life: 1, c: c1, r: 2 + Math.random() * 3 });
@@ -422,7 +608,7 @@ async function settleReward() {
   }
   const r = await fetch('/api/solo/watermelon/reward', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, maxLevel }),
+    body: JSON.stringify({ token, maxLevel, score }),
   }).catch(() => null);
   resultEl.style.display = 'block';
   if (!r || r.status !== 200) {
@@ -433,6 +619,7 @@ async function settleReward() {
   }
   const d = await r.json();
   let html = '<div class="big" style="color:var(--green)">🎉 合成了 ' + NAMES[d.level] + '（' + d.level + '级）</div>';
+  html += '<div>本局得分 <b>' + score + '</b> 分</div>';
   if (d.rewardUsd > 0) {
     html += '<div>本次奖励 <b style="color:var(--green)">+$' + d.rewardUsd.toFixed(2) + '</b> 已到账' + (d.capped ? '（已触及每日上限，按剩余额度发放）' : '') + '</div>';
   } else if (d.capped) {

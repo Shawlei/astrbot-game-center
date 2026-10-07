@@ -608,8 +608,9 @@ app.post('/api/solo/dice/play', async (req, res) => {
   }
 });
 
-// ---- 合成大西瓜（免费玩，按最高合成等级发小额额度奖励，每日封顶） ----
-// 客户端上报当局最高合成等级 maxLevel（1~11）。服务端按等级发奖励，受每日每用户上限约束。
+// ---- 合成大西瓜（免费玩，按得分发额度奖励，每日封顶） ----
+// 客户端上报当局最高合成等级 maxLevel（1~11）与本局累计得分 score。
+// 服务端按「分数 × 每分系数」计算奖励（夹在单局上下限之间），受每日每用户上限约束。
 app.post('/api/solo/watermelon/reward', async (req, res) => {
   try {
     const s = auth.resolve((req.body || {}).token);
@@ -621,8 +622,10 @@ app.post('/api/solo/watermelon/reward', async (req, res) => {
     if (Number.isNaN(level)) level = 0;
     level = Math.max(0, Math.min(11, level));
 
+    const score = Number((req.body || {}).score) || 0;
+
     // 每日封顶判定 + 持久化（同步，防并发超发）
-    const r = watermelonRewards.claim(s.userId, level, cfg);
+    const r = watermelonRewards.claim(s.userId, level, score, cfg);
 
     let quota = settle.ready() ? await settle.balance(s.userId) : null;
     if (r.rewardUsd > 0 && settle.ready()) {

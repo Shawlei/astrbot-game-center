@@ -95,9 +95,10 @@ const GAME_GROUPS = [
     { key: 'watermelon', name: '合成大西瓜', icon: '🍉', fields: [
       { key: 'games.watermelon.enabled', label: '启用', type: 'bool' },
       { key: 'games.watermelon.rewardCapUsd', label: '每人每日奖励上限（$，防刷）', type: 'number', step: '0.5' },
-      { key: 'games.watermelon.reward9Usd', label: '合成菠萝(9级) 单局奖励（$）', type: 'number', step: '0.1' },
-      { key: 'games.watermelon.reward10Usd', label: '合成蜜瓜(10级) 单局奖励（$）', type: 'number', step: '0.1' },
-      { key: 'games.watermelon.reward11Usd', label: '合成西瓜(11级) 单局奖励（$）', type: 'number', step: '0.1' },
+      { key: 'games.watermelon.rewardMinLevel', label: '领奖最低合成等级（默认 9 菠萝）', type: 'number' },
+      { key: 'games.watermelon.rewardPerScoreUsd', label: '每分奖励（$，约每 400 分 = $1）', type: 'number', step: '0.0005' },
+      { key: 'games.watermelon.rewardMinUsd', label: '单局最低奖励（$，保底）', type: 'number', step: '0.1' },
+      { key: 'games.watermelon.rewardMaxUsd', label: '单局最高奖励（$，封顶）', type: 'number', step: '0.5' },
     ]},
   ]},
   { cat: '🎟️ 双色球彩票', games: [
