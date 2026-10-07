@@ -122,9 +122,20 @@ body { padding: 16px 8px 24px; }
   border: 1px solid rgba(255,255,255,.5);
   background: repeating-linear-gradient(45deg, rgba(255,255,255,.12) 0 3px, transparent 3px 6px);
 }
-/* 手牌重叠 */
-.hand-inner .pcard + .pcard { margin-left: -18px; }
-.hand-inner .pcard.selected + .pcard { margin-left: -18px; }
+/* 手牌重叠：间距由 JS 按牌数与容器宽度动态计算（--ov），牌多时自动压缩保证全部可见 */
+.hand-inner .pcard + .pcard { margin-left: var(--ov, -18px); }
+
+/* 发牌动画：洗牌阶段牌背逐张飞入 */
+.pcard.back.deal-anim { animation: dealIn .32s ease backwards; }
+@keyframes dealIn {
+  from { transform: translate(46px, -84px) rotate(18deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+/* 亮牌动画：发牌结束手牌翻开 */
+.pcard.entry { animation: cardEntry .22s ease backwards; }
+@keyframes cardEntry {
+  from { transform: translateY(30px) scale(.9); opacity: 0; }
+}
 
 /* 操作按钮 */
 .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -144,7 +155,6 @@ body { padding: 16px 8px 24px; }
   .pcard .corner .rn { font-size: 12px; }
   .pcard .corner .suit { font-size: 10px; }
   .pcard .big { font-size: 22px; }
-  .hand-inner .pcard + .pcard { margin-left: -24px; }
   .seat { min-width: 76px; }
   .seat .avatar { width: 38px; height: 38px; font-size: 18px; }
   .seat .name { font-size: 11px; }
@@ -247,6 +257,7 @@ let deadline = null, timeoutMs = 180000, timerInterval = null;
 let gameOver = false, fatalError = false;
 let curRid = null, curPl = null, curTk = null, reconnectTimer = null;
 let rules = { allowDouble: true, allowSuperDouble: true, allowSpring: true };
+let showDealEntry = false;   // 发牌阶段结束 → 首次亮牌播入场动画
 
 const $ = (id) => document.getElementById(id);
 
@@ -270,8 +281,10 @@ function cardHTML(card, small) {
   const cls = small ? 'pcard small' : 'pcard';
   if (card.rank >= 16) {
     const big = card.rank === 17;
+    // 左上角标「王」：手牌重叠时也能认出是王（★ 大王 / ☆ 小王）
     return '<div class="' + cls + ' joker ' + (big ? '' : 'small') + '">' +
-      '<div class="jtxt">' + (big ? 'JOKER' : 'JOKER') + '</div></div>';
+      '<div class="corner"><span class="rn">王</span><span class="suit">' + (big ? '★' : '☆') + '</span></div>' +
+      '<div class="jtxt">JOKER</div></div>';
   }
   const red = isRed(card) ? ' red' : ' black';
   return '<div class="' + cls + red + '">' +
@@ -287,7 +300,7 @@ function render() {
   // 底牌
   const bc = $('bottomCards');
   bc.innerHTML = '';
-  if (phase === 'bidding' || phase === '' ) {
+  if (phase === 'dealing' || phase === 'bidding' || phase === '') {
     for (let i = 0; i < 3; i++) bc.innerHTML += cardBackHTML(true);
   } else {
     for (const c of bottom) bc.innerHTML += cardHTML(c, true);
@@ -362,20 +375,60 @@ function renderPlays(el, whoEl, play) {
 function renderHand() {
   const el = $('myHand');
   el.innerHTML = '';
+  // 洗牌发牌阶段：渲染牌背逐张飞入（手牌暂不公开）
+  if (phase === 'dealing') {
+    const n = handSizes[mySeat] || 17;
+    for (let i = 0; i < n; i++) {
+      const div = document.createElement('div');
+      div.innerHTML = cardBackHTML(false);
+      const back = div.firstChild;
+      back.classList.add('deal-anim');
+      back.style.animationDelay = (i * 70) + 'ms';
+      el.appendChild(back);
+    }
+    layoutHand(n);
+    return;
+  }
+  const entry = showDealEntry;   // 刚从发牌阶段亮牌 → 播翻牌入场动画
+  showDealEntry = false;
   hand.forEach((c, i) => {
     const div = document.createElement('div');
     div.innerHTML = cardHTML(c, false);
     const pcard = div.firstChild;
     pcard.classList.toggle('selected', selected.has(i));
+    if (entry) { pcard.classList.add('entry'); pcard.style.animationDelay = (i * 25) + 'ms'; }
     pcard.onclick = () => toggleSelect(i);
     el.appendChild(pcard);
   });
+  layoutHand(hand.length);
+}
+
+// 动态重叠：按牌数与容器宽度计算相邻牌间距（--ov），牌多时自动压缩，保证手机端全部可见
+function layoutHand(n) {
+  const el = $('myHand');
+  if (!n) { el.style.removeProperty('--ov'); return; }
+  const avail = el.clientWidth - 10;
+  const first = el.querySelector('.pcard');
+  if (!first) return;
+  const cardW = first.offsetWidth || 42;
+  let ov = -18;
+  if (n > 1 && avail > cardW) {
+    const fullW = cardW + (n - 1) * (cardW - 18);
+    if (fullW > avail) {
+      const step = (avail - cardW) / (n - 1);
+      ov = Math.ceil(step - cardW);          // 向上取整保证总宽不超
+      if (cardW + ov < 16) ov = 16 - cardW;  // 极窄屏兜底：每张至少露 16px
+    }
+  }
+  el.style.setProperty('--ov', ov + 'px');
 }
 
 function renderCenter() {
   const el = $('centerMsg');
   if (gameOver) { el.textContent = ''; return; }
-  if (phase === 'bidding') {
+  if (phase === 'dealing') {
+    el.textContent = '正在洗牌发牌…';
+  } else if (phase === 'bidding') {
     if (bidSeat === mySeat) el.textContent = '轮到你叫地主';
     else el.textContent = '等待叫地主…（最高 ' + (highestBid || '无') + ' 分）';
   } else if (phase === 'doubling') {
@@ -524,7 +577,7 @@ function connectWS(rid, pl, tk) {
       $('table').style.display = 'flex';
       GCAuth.saveBattle(GAME_TYPE, curRid, curPl, curTk);
       startTimer(msg.deadline, msg.timeoutMs);
-    } else if (msg.type === 'bid' || msg.type === 'landlord' || msg.type === 'double' || msg.type === 'play' || msg.type === 'pass' || msg.type === 'redeal') {
+    } else if (msg.type === 'bid' || msg.type === 'landlord' || msg.type === 'double' || msg.type === 'play' || msg.type === 'pass' || msg.type === 'redeal' || msg.type === 'deal') {
       applyState(msg);
       startTimer(msg.deadline, msg.timeoutMs);
       if (msg.type === 'redeal') toast('无人叫地主，重新发牌');
@@ -551,7 +604,9 @@ function connectWS(rid, pl, tk) {
 }
 
 function applyState(msg) {
+  const prev = phase;
   phase = msg.phase || phase;
+  if (prev === 'dealing' && phase === 'bidding') showDealEntry = true;
   if (msg.rules) rules = msg.rules;
   hand = msg.me ? msg.me.slice() : hand;
   landlord = msg.landlord != null ? msg.landlord : landlord;
@@ -634,9 +689,15 @@ async function joinByCode() {
 $('btnJoin').onclick = joinByCode;
 GCAuth.renderAuthBar($('authBar'));
 
+// 窗口尺寸变化（转屏等）时重算手牌重叠
+window.addEventListener('resize', () => {
+  layoutHand(phase === 'dealing' ? (handSizes[mySeat] || 0) : hand.length);
+});
+
 // 演示模式：无对局时用引擎生成一局静态牌桌，供预览与视觉验证
 function demoMode() {
   const g = new D.DouDiZhu({ seed: (Date.now() & 0x7fffffff) });
+  g.deal(); // 引擎现在从 dealing 相位起步，先进入叫分
   // 让座位 0（我）叫 3 分当地主，其余不叫，保证「我」手牌 20 张、底牌归我
   while (g.phase === 'bidding') g.bid(g.bidSeat, g.bidSeat === 0 ? 3 : 0);
   while (g.phase === 'doubling') g.double(g.doubleSeat, 1);

@@ -329,6 +329,8 @@ app.post('/api/room/:id/join', async (req, res) => {
   room.game = GAME_TYPES[room.gameType].create(gameCfg(room.gameType));
   room.state = 'playing';
   room.turnDeadline = Date.now() + room.timeoutMs;
+  // 斗地主：三人到齐后先进入「洗牌发牌」阶段（dealing），延时再进入叫分，像欢乐斗地主一样
+  if (room.gameType === 'doudizhu') scheduleDDZDeal(room);
 
   res.json({ code: 'started', room: roomPublic(room, true) });
 });
@@ -994,6 +996,7 @@ function ddzCurrentSeat(room) {
 // 结束斗地主：3 人结算 + 战绩
 async function finishDoudizhu(room) {
   if (room.state === 'finished') return;
+  if (room.dealTimer) { clearTimeout(room.dealTimer); room.dealTimer = null; }
   room.state = 'finished';
   room.finishedAt = Date.now();
   const g = room.game;
@@ -1048,6 +1051,7 @@ async function handleDDZMessage(ws, room, player, msg) {
     room.turnDeadline = Date.now() + room.timeoutMs;
     if (r.redealt) {
       broadcastDDZ(room, 'redeal', { bidStart: g.bidStart });
+      scheduleDDZDeal(room); // 流局重发：再次进入洗牌发牌阶段
     } else if (r.landlord !== undefined && r.landlord !== -1) {
       broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom });
     } else {
@@ -1087,7 +1091,7 @@ async function ddzAutoMove(room) {
     if (g.phase === 'bidding') {
       const score = ddzAi.bid(g.hands[seat], g.highestBid);
       const r = g.bid(seat, score);
-      if (r.redealt) broadcastDDZ(room, 'redeal', {});
+      if (r.redealt) { broadcastDDZ(room, 'redeal', {}); scheduleDDZDeal(room); }
       else if (r.landlord !== undefined && r.landlord !== -1) broadcastDDZ(room, 'landlord', { landlord: g.landlord, bottom: g.bottom, auto: true });
       else broadcastDDZ(room, 'bid', { auto: true, autoSeat: seat });
     } else if (g.phase === 'doubling') {
@@ -1168,6 +1172,24 @@ function broadcastMarket(msg) {
       if (c.readyState === WebSocket.OPEN) c.send(data);
     } catch (e) { /* 单个坏连接不影响整体广播 */ }
   });
+}
+
+// 洗牌发牌阶段时长：前端播发牌动画，之后才进入叫分
+const DDZ_DEAL_MS = 2800;
+
+// 斗地主：dealing → bidding（开战/流局重发后调用，重发前先清旧定时器）
+function scheduleDDZDeal(room) {
+  if (room.dealTimer) clearTimeout(room.dealTimer);
+  room.dealTimer = setTimeout(() => {
+    room.dealTimer = null;
+    if (room.state !== 'playing' || !room.game || room.game.phase !== 'dealing') return;
+    const r = room.game.deal();
+    if (r.ok) {
+      room.turnDeadline = Date.now() + room.timeoutMs;
+      broadcastDDZ(room, 'deal', {});
+      console.log(`[game-center] 斗地主发牌完成 房间=${room.id} 首叫座位=${r.bidSeat}`);
+    }
+  }, DDZ_DEAL_MS);
 }
 
 // 广播失败不得影响交易结果（买入/卖出已成功扣款+入仓时，不能因推送异常返回失败）
