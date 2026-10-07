@@ -232,7 +232,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .room-card .rc-icon { font-size: 28px; }
 .room-card .rc-title { font-size: 16px; font-weight: 800; }
-.room-card .rc-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.room-card .rc-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; overflow-wrap: anywhere; }
 .room-card .rc-sub b { color: var(--text); font-weight: 600; }
 .room-card .rc-form { display: flex; gap: 8px; flex: 1; min-width: 260px; }
 .room-card input {
@@ -267,7 +267,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .lb-rank.top { background: linear-gradient(135deg, #ffd76a, #f5a623); color: #241a00; box-shadow: 0 4px 12px -3px rgba(245,166,35,.5); }
 .lb-rank.top.silver { background: linear-gradient(135deg, #e6ecf7, #9fb0c8); color: #222b3d; box-shadow: 0 4px 12px -3px rgba(159,176,200,.5); }
 .lb-rank.top.bronze { background: linear-gradient(135deg, #e8b48a, #c07a45); color: #33200c; box-shadow: 0 4px 12px -3px rgba(192,122,69,.5); }
-.lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
+.lb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
 .lb-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .lb-val { color: var(--gold); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lb-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
@@ -282,6 +282,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 @media (max-width: 600px) {
   .nav { padding: 12px 16px; }
+  .nav .nav-chip { display: none; }
   .shell { padding: 0 16px 44px; }
   .hero { padding-top: 130px; }
   .games { grid-template-columns: 1fr; }
@@ -332,7 +333,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     <div class="room-card">
       <div class="inner">
         <div class="rc-icon">🚪</div>
-        <div style="min-width:0;flex:0 0 auto">
+        <div style="flex:1 1 220px;min-width:0">
           <div class="rc-title">凭房间码进入对战</div>
           <div class="rc-sub">机器人在群里匹配成功后私聊发码：<b>%斗地主</b> / <b>%象棋对战</b> / <b>%五子棋对战</b></div>
         </div>
