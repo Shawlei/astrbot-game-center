@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>额度游戏中心</title>
+<title>Covi的游戏屋</title>
 <style>
 :root {
-  --bg: #0a0c16;
+  --bg: #07080f;
   --panel: rgba(255, 255, 255, .035);
-  --panel-solid: #141726;
-  --border: rgba(255, 255, 255, .09);
-  --text: #eef1ff;
-  --muted: #9aa0b8;
+  --border: rgba(255, 255, 255, .08);
+  --text: #f2f4ff;
+  --muted: #8b90a6;
   --accent: #6c7cff;
   --accent-2: #b16cff;
   --red: #ff5d5d;
   --green: #3ecf8e;
   --gold: #f6c343;
-  --radius: 18px;
+  --radius: 20px;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,146 +27,185 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: var(--font);
   min-height: 100vh;
   line-height: 1.55;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* ---- 氛围背景 ---- */
-.bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: var(--bg); }
+::selection { background: rgba(108,124,255,.35); }
+
+/* ---- 背景层 ---- */
+.bg { position: fixed; inset: 0; z-index: -3; background: var(--bg); }
 .bg::before {
   content: ''; position: absolute; inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 75%);
+  background:
+    radial-gradient(60% 45% at 12% -5%, rgba(108,124,255,.16), transparent 60%),
+    radial-gradient(50% 40% at 88% 0%, rgba(177,108,255,.14), transparent 60%),
+    radial-gradient(55% 50% at 50% 110%, rgba(255,106,154,.10), transparent 60%);
 }
-.orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .5; }
-.orb.o1 { width: 520px; height: 520px; background: #6c7cff; top: -220px; left: -120px; animation: drift 26s ease-in-out infinite; }
-.orb.o2 { width: 460px; height: 460px; background: #b16cff; top: -160px; right: -140px; animation: drift 32s ease-in-out infinite reverse; }
-.orb.o3 { width: 420px; height: 420px; background: #ff6a9a; bottom: -220px; left: 50%; transform: translateX(-50%); animation: drift 38s ease-in-out infinite; }
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(50px, 40px) scale(1.1); }
-  66% { transform: translate(-40px, 30px) scale(.95); }
+.bg::after {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% -5%, #000 15%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% -5%, #000 15%, transparent 75%);
+}
+#stars { position: fixed; inset: 0; z-index: -2; }
+#cursorGlow {
+  position: fixed; top: 0; left: 0; z-index: -1; pointer-events: none;
+  width: 520px; height: 520px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(108,124,255,.10), transparent 65%);
+  transform: translate(-50%, -50%); opacity: 0; transition: opacity .4s;
+}
+
+/* ---- 顶栏 ---- */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px; transition: all .3s ease;
+}
+.nav.scrolled {
+  background: rgba(10,11,20,.72); backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 21px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 22px rgba(108,124,255,.4);
+}
+.brand .brand-txt { font-size: 17px; font-weight: 800; letter-spacing: .4px; }
+.nav .nav-right { display: flex; align-items: center; gap: 10px; }
+.nav .nav-chip {
+  font-size: 12px; color: #cfe8ff; background: rgba(108,124,255,.12);
+  border: 1px solid rgba(108,124,255,.3); padding: 5px 13px; border-radius: 999px; font-weight: 600;
+  backdrop-filter: blur(8px);
 }
 
 /* ---- 容器 ---- */
-.shell { max-width: 1000px; margin: 0 auto; padding: 0 20px 40px; }
-
-/* ---- 顶部导航条 ---- */
-.nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 6px; flex-wrap: wrap; gap: 10px; }
-.brand { display: flex; align-items: center; gap: 11px; }
-.brand .logo {
-  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 20px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 6px 20px rgba(108,124,255,.35);
-}
-.brand .brand-txt { font-size: 17px; font-weight: 800; letter-spacing: .5px; }
-.brand .brand-sub { font-size: 12px; color: var(--muted); margin-top: -2px; }
-.nav .nav-chip {
-  font-size: 12px; color: var(--gold); background: rgba(246,195,67,.1);
-  border: 1px solid rgba(246,195,67,.28); padding: 5px 12px; border-radius: 999px; font-weight: 600;
-}
+.shell { max-width: 1080px; margin: 0 auto; padding: 0 24px 60px; }
 
 /* ---- Hero ---- */
-.hero { text-align: center; padding: 34px 0 8px; }
+.hero { text-align: center; padding: 150px 0 30px; }
+.hero .kicker {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  color: #c9d1ff; background: rgba(108,124,255,.1); border: 1px solid rgba(108,124,255,.25);
+  padding: 7px 16px; border-radius: 999px; margin-bottom: 22px;
+}
+.hero .kicker .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(62,207,142,.6); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(62,207,142,.55); } 70% { box-shadow: 0 0 0 9px rgba(62,207,142,0); } 100% { box-shadow: 0 0 0 0 rgba(62,207,142,0); } }
 .hero h1 {
-  font-size: clamp(30px, 6vw, 46px); font-weight: 900; letter-spacing: 1px;
-  background: linear-gradient(120deg, #ffffff 10%, #b9c4ff 45%, #d9b6ff 75%, #ffffff 100%);
+  font-size: clamp(38px, 7.5vw, 72px); font-weight: 900; letter-spacing: -.5px; line-height: 1.08;
+  background: linear-gradient(100deg, #fff 5%, #b9c4ff 30%, #e3b6ff 55%, #ffc9de 80%, #fff 100%);
+  background-size: 200% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: shine 8s linear infinite;
 }
-.hero p { color: var(--muted); font-size: 15px; margin-top: 10px; }
-.hero .chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
-.hero .chip {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
-  color: var(--text); background: var(--panel); border: 1px solid var(--border);
-  padding: 7px 15px; border-radius: 999px;
+@keyframes shine { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+.hero .sub { color: var(--muted); font-size: 17px; margin-top: 16px; max-width: 560px; margin-left: auto; margin-right: auto; }
+.hero .stats { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
+.hero .stat {
+  min-width: 130px; padding: 16px 20px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--border); backdrop-filter: blur(10px);
 }
-.hero .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
-.dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
-.dot.red { background: var(--red); box-shadow: 0 0 8px var(--red); }
-.dot.gold { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.hero .stat .num { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.hero .stat .num span { background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.hero .stat .lbl { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.hero .scroll-hint { margin-top: 40px; color: var(--muted); font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.hero .scroll-hint .mouse { width: 22px; height: 34px; border: 1.5px solid var(--muted); border-radius: 12px; display: flex; justify-content: center; padding-top: 6px; }
+.hero .scroll-hint .wheel { width: 3px; height: 7px; border-radius: 3px; background: var(--muted); animation: wheel 1.8s infinite; }
+@keyframes wheel { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
 
 /* ---- 登录条 ---- */
 .auth-bar {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 12px 16px; margin: 20px 0 6px; backdrop-filter: blur(12px);
+  padding: 14px 18px; margin: 10px 0 6px; backdrop-filter: blur(14px);
 }
 .auth-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .auth-form input {
-  flex: 1; min-width: 120px; background: rgba(255,255,255,.04); color: var(--text);
-  border: 1px solid var(--border); border-radius: 11px; padding: 10px 14px; font-size: 13px; outline: none; transition: border-color .15s;
+  flex: 1; min-width: 120px; background: rgba(255,255,255,.05); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px; padding: 11px 15px; font-size: 13.5px; outline: none;
+  transition: border-color .18s, box-shadow .18s;
 }
 .auth-form input::placeholder { color: #6b7086; }
-.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.15); }
+.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.16); }
 .auth-user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); flex-wrap: wrap; }
 .auth-user b { font-size: 15px; }
 .auth-user .auth-quota {
-  font-size: 12px; color: var(--gold); background: rgba(246,195,67,.1);
-  border: 1px solid rgba(246,195,67,.28); padding: 4px 12px; border-radius: 999px; font-weight: 700;
+  font-size: 12.5px; color: var(--gold); background: rgba(246,195,67,.1);
+  border: 1px solid rgba(246,195,67,.28); padding: 4px 13px; border-radius: 999px; font-weight: 700;
 }
 .auth-user .auth-btn {
   margin-left: auto; background: rgba(255,255,255,.05); color: var(--muted);
-  border: 1px solid var(--border); border-radius: 10px; padding: 7px 15px; font-size: 12px; cursor: pointer; transition: all .15s;
+  border: 1px solid var(--border); border-radius: 10px; padding: 7px 15px; font-size: 12px; cursor: pointer; transition: all .18s;
 }
 .auth-user .auth-btn:hover { color: var(--text); border-color: var(--red); }
 
-/* ---- 通用按钮 ---- */
+/* ---- 按钮 ---- */
 button {
   background: rgba(255,255,255,.05); color: var(--text); border: 1px solid var(--border);
-  border-radius: 11px; padding: 10px 18px; font-size: 14px; cursor: pointer; transition: all .15s ease;
+  border-radius: 12px; padding: 11px 20px; font-size: 14px; cursor: pointer; transition: all .18s ease;
   font-family: inherit;
 }
 button:hover { border-color: var(--accent); }
 button.primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
-  font-weight: 700; color: #fff; box-shadow: 0 6px 18px rgba(108,124,255,.3);
+  font-weight: 700; color: #fff; box-shadow: 0 8px 24px rgba(108,124,255,.32);
 }
-button.primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(108,124,255,.42); }
-button:active { transform: translateY(0); }
+button.primary:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(108,124,255,.44); }
+button:active { transform: translateY(0) scale(.98); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ---- 分区 ---- */
-.section { margin-top: 30px; }
-.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.section { margin-top: 46px; }
+.section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .section-head .ico {
-  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px;
+  width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px rgba(108,124,255,.28);
 }
-.section-head .ttl { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+.section-head .ttl { font-size: 19px; font-weight: 800; letter-spacing: .3px; }
 .section-head .cnt { font-size: 12px; color: var(--muted); margin-left: 2px; }
-.section-head::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); margin-left: 4px; }
+.section-head::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); margin-left: 6px; }
 
 /* ---- 游戏卡片 ---- */
-.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 14px; }
+.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 .game-card {
-  position: relative; display: flex; align-items: center; gap: 13px;
+  position: relative; display: block; overflow: hidden;
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 16px 15px; cursor: pointer; text-decoration: none; color: var(--text);
-  overflow: hidden; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
-  animation: rise .5s both;
+  cursor: pointer; text-decoration: none; color: var(--text);
+  perspective: 800px;
+  transition: border-color .25s ease, box-shadow .25s ease, opacity .6s ease, transform .6s ease;
+  opacity: 0; transform: translateY(20px);
 }
+.game-card.revealed { opacity: 1; transform: translateY(0); }
 .game-card::before {
-  content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity .18s ease;
-  background: radial-gradient(120% 130% at 0% 0%, var(--tint, transparent), transparent 60%);
+  content: ''; position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), var(--tint2, rgba(255,255,255,.08)), transparent 60%);
 }
-.game-card:hover {
-  transform: translateY(-3px); border-color: var(--hc, var(--accent));
-  box-shadow: 0 14px 34px -12px var(--hs, rgba(0,0,0,.6));
+.game-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hc, var(--accent)), transparent);
+  opacity: 0; transition: opacity .3s;
 }
-.game-card:hover::before { opacity: 1; }
+.game-card:hover { border-color: var(--hc, var(--accent)); box-shadow: 0 22px 48px -18px var(--hs, rgba(0,0,0,.7)); }
+.game-card:hover::before, .game-card:hover::after { opacity: 1; }
+.gc-inner {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 14px;
+  padding: 18px 16px; transform-style: preserve-3d; will-change: transform;
+}
 .game-card .gc-icon {
-  position: relative; width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
-  display: grid; place-items: center; font-size: 26px;
+  width: 54px; height: 54px; border-radius: 15px; flex-shrink: 0; display: grid; place-items: center; font-size: 27px;
   background: linear-gradient(135deg, var(--c1), var(--c2));
-  box-shadow: 0 6px 16px -4px var(--hs, rgba(0,0,0,.5));
+  box-shadow: 0 8px 20px -6px var(--hs, rgba(0,0,0,.5));
+  transform: translateZ(26px);
 }
-.game-card .gc-body { position: relative; min-width: 0; flex: 1; }
+.game-card .gc-body { min-width: 0; flex: 1; transform: translateZ(18px); }
 .game-card .gc-name { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 7px; }
 .game-card .gc-tag {
   font-size: 10px; font-weight: 700; color: var(--c1); background: var(--tint, rgba(255,255,255,.06));
@@ -174,60 +213,56 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .game-card .gc-desc { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .game-card .gc-go {
-  position: relative; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
-  display: grid; place-items: center; color: var(--muted); font-size: 15px;
-  background: rgba(255,255,255,.05); border: 1px solid var(--border); transition: all .18s;
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--muted); font-size: 16px; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+  transition: all .22s; transform: translateZ(30px);
 }
-.game-card:hover .gc-go { color: #fff; background: linear-gradient(135deg, var(--c1), var(--c2)); border-color: transparent; transform: translateX(2px); }
-
-@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-
-/* 股市大卡（单独一栏时拉通） */
+.game-card:hover .gc-go { color: #fff; background: linear-gradient(135deg, var(--c1), var(--c2)); border-color: transparent; }
 .game-card.wide { grid-column: 1 / -1; }
 
-/* ---- 房间码入口 ---- */
+/* ---- 房间码 ---- */
 .room-card {
-  position: relative; margin-top: 16px; border-radius: var(--radius); padding: 1px;
+  position: relative; margin-top: 18px; border-radius: var(--radius); padding: 1px;
   background: linear-gradient(120deg, var(--accent), var(--accent-2), #ff6a9a);
-  box-shadow: 0 12px 34px -14px rgba(108,124,255,.5);
+  box-shadow: 0 16px 40px -18px rgba(108,124,255,.55);
 }
 .room-card .inner {
-  background: #12141f; border-radius: calc(var(--radius) - 1px); padding: 18px 20px;
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: #0f111d; border-radius: calc(var(--radius) - 1px); padding: 20px 22px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
-.room-card .rc-icon { font-size: 26px; }
-.room-card .rc-title { font-size: 15px; font-weight: 800; }
-.room-card .rc-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.room-card .rc-icon { font-size: 28px; }
+.room-card .rc-title { font-size: 16px; font-weight: 800; }
+.room-card .rc-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
 .room-card .rc-sub b { color: var(--text); font-weight: 600; }
 .room-card .rc-form { display: flex; gap: 8px; flex: 1; min-width: 260px; }
 .room-card input {
   flex: 1; min-width: 140px; background: rgba(255,255,255,.04); color: var(--text);
-  border: 1px solid var(--border); border-radius: 11px; padding: 11px 14px; font-size: 14px; outline: none;
-  letter-spacing: 1px; text-transform: uppercase; transition: border-color .15s;
+  border: 1px solid var(--border); border-radius: 12px; padding: 12px 15px; font-size: 14px; outline: none;
+  letter-spacing: 1px; text-transform: uppercase; transition: border-color .18s, box-shadow .18s;
 }
 .room-card input::placeholder { color: #6b7086; letter-spacing: 0; }
-.room-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.15); }
+.room-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,124,255,.16); }
 
 /* ---- 排行榜 ---- */
 .leaderboard {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px 20px; margin-top: 6px; backdrop-filter: blur(12px);
+  padding: 20px 22px; margin-top: 6px; backdrop-filter: blur(14px);
 }
 .lb-tabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 16px; }
 .lb-tab {
   background: rgba(255,255,255,.04); color: var(--muted); border: 1px solid var(--border);
-  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all .15s ease; font-family: inherit;
+  border-radius: 999px; padding: 6px 15px; font-size: 13px; cursor: pointer; transition: all .18s ease; font-family: inherit;
 }
 .lb-tab:hover { color: var(--text); border-color: var(--accent); }
 .lb-tab.active {
   background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
-  border-color: transparent; font-weight: 700;
+  border-color: transparent; font-weight: 700; box-shadow: 0 4px 14px rgba(108,124,255,.3);
 }
-.lb-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.lb-row { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .lb-row:last-child { border-bottom: none; }
 .lb-rank {
-  width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 13px; background: rgba(255,255,255,.05); color: var(--muted); flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; background: rgba(255,255,255,.05); color: var(--muted); flex-shrink: 0;
 }
 .lb-rank.top { background: linear-gradient(135deg, #ffd76a, #f5a623); color: #241a00; box-shadow: 0 4px 12px -3px rgba(245,166,35,.5); }
 .lb-rank.top.silver { background: linear-gradient(135deg, #e6ecf7, #9fb0c8); color: #222b3d; box-shadow: 0 4px 12px -3px rgba(159,176,200,.5); }
@@ -235,49 +270,63 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
 .lb-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .lb-val { color: var(--gold); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.lb-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 0; }
+.lb-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
 
 /* ---- 页脚 ---- */
-.footer { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 34px; line-height: 1.7; }
+.footer { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 52px; line-height: 1.7; }
 .footer b { color: var(--text); font-weight: 600; }
 
-@media (max-width: 560px) {
-  .shell { padding: 0 14px 32px; }
-  .games { grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); }
+/* 渐入 */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+.reveal.in { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 600px) {
+  .nav { padding: 12px 16px; }
+  .shell { padding: 0 16px 44px; }
+  .hero { padding-top: 130px; }
+  .games { grid-template-columns: 1fr; }
   .room-card .rc-form { flex-direction: column; }
   .room-card input { width: 100%; }
   .lb-sub { display: none; }
 }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .hero h1 { animation: none; }
+}
 </style>
 </head>
 <body>
-<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+<div class="bg"></div>
+<canvas id="stars"></canvas>
+<div id="cursorGlow"></div>
+
+<nav class="nav" id="nav">
+  <div class="brand">
+    <div class="logo">🎮</div>
+    <div class="brand-txt">Covi的游戏屋</div>
+  </div>
+  <div class="nav-right">
+    <span class="nav-chip">✦ Covi's Game House</span>
+  </div>
+</nav>
 
 <div class="shell">
-  <nav class="nav">
-    <div class="brand">
-      <div class="logo">🎮</div>
-      <div>
-        <div class="brand-txt">额度游戏中心</div>
-        <div class="brand-sub">真实额度 · 赢了返额 · 输了扣额</div>
-      </div>
-    </div>
-    <span class="nav-chip">✦ 与机器人账号互通</span>
-  </nav>
-
   <header class="hero">
-    <h1>额度游戏中心</h1>
-    <p>单机小游戏 · 联机对战 · 模拟股市，一个入口畅玩</p>
-    <div class="chips">
-      <span class="chip"><span class="dot gold"></span>真实额度结算</span>
-      <span class="chip"><span class="dot green"></span>联机真人对战</span>
-      <span class="chip"><span class="dot red"></span>24h 模拟股市</span>
+    <div class="kicker"><span class="pulse"></span> 已上线 · 与机器人账号互通</div>
+    <h1>Covi的游戏屋</h1>
+    <p class="sub">一个小而精致的游戏屋 —— 单机小游戏、联机对战、模拟股市，赢了返额度，输了扣额度。</p>
+    <div class="stats">
+      <div class="stat"><div class="num"><span class="count" data-to="9">0</span></div><div class="lbl">款游戏</div></div>
+      <div class="stat"><div class="num"><span class="count" data-to="3">0</span></div><div class="lbl">联机对战</div></div>
+      <div class="stat"><div class="num"><span class="count" data-to="5">0</span></div><div class="lbl">单机小游戏</div></div>
+      <div class="stat"><div class="num"><span class="count" data-to="1">0</span></div><div class="lbl">模拟股市</div></div>
     </div>
+    <div class="scroll-hint"><div class="mouse"><div class="wheel"></div></div><span>向下探索</span></div>
   </header>
 
-  <div id="authBar"></div>
+  <div class="reveal"><div id="authBar"></div></div>
 
-  <section class="section">
+  <section class="section reveal">
     <div class="section-head"><div class="ico">⚔️</div><div class="ttl">联机对战</div><div class="cnt" id="pvpCnt"></div></div>
     <div class="games" id="pvpGames"></div>
     <div class="room-card">
@@ -295,17 +344,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     </div>
   </section>
 
-  <section class="section">
+  <section class="section reveal">
     <div class="section-head"><div class="ico">🎰</div><div class="ttl">单机小游戏</div><div class="cnt" id="soloCnt"></div></div>
     <div class="games" id="soloGames"></div>
   </section>
 
-  <section class="section">
+  <section class="section reveal">
     <div class="section-head"><div class="ico">📈</div><div class="ttl">模拟股市</div><div class="cnt" id="marketCnt"></div></div>
     <div class="games" id="marketGames"></div>
   </section>
 
-  <section class="section">
+  <section class="section reveal">
     <div class="section-head"><div class="ico">🏆</div><div class="ttl">排行榜</div></div>
     <div class="leaderboard">
       <div class="lb-tabs" id="lbTabs"></div>
@@ -313,7 +362,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     </div>
   </section>
 
-  <div class="footer" id="hint">本页为大厅入口；联机对战请在群里发 <b>%斗地主</b> / <b>%象棋对战</b> / <b>%五子棋对战</b> 匹配，凭机器人私聊的房间码进入。</div>
+  <div class="footer" id="hint">Covi的游戏屋 · 联机对战请在群里发 <b>%斗地主</b> / <b>%象棋对战</b> / <b>%五子棋对战</b> 匹配，凭机器人私聊的房间码进入。</div>
 </div>
 
 <script src="/js/auth.js"></script>
@@ -321,20 +370,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 const gid = new URLSearchParams(location.search).get('gid');
 const q = gid ? ('?gid=' + encodeURIComponent(gid)) : '';
 
-// 每款游戏的视觉元信息：图标 / 渐变色 / 标签
+// 每款游戏的视觉元信息
 const GAME_META = {
-  doudizhu:  { icon: '🃏', c1: '#ff6a4d', c2: '#ff2d78', tint: 'rgba(255,90,80,.14)',  hc: 'rgba(255,90,80,.6)',  tag: '3人', desc: '三人一桌，叫地主 / 加倍 / 炸弹，经典斗地主规则。' },
-  xiangqi:   { icon: '♟️', c1: '#f5a623', c2: '#e07b39', tint: 'rgba(245,166,35,.14)', hc: 'rgba(245,166,35,.6)', tag: '2人', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
-  gomoku:    { icon: '⚫', c1: '#4dd0e1', c2: '#26a69a', tint: 'rgba(77,208,225,.14)',  hc: 'rgba(77,208,225,.6)',  tag: '2人', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
-  snake:     { icon: '🐍', c1: '#66bb6a', c2: '#2e7d32', tint: 'rgba(102,187,106,.14)', hc: 'rgba(102,187,106,.6)', tag: '单机', desc: '门票入场，吃食越多奖励越高，方向键 / 滑动操控。' },
-  breakout:  { icon: '🎮', c1: '#42a5f5', c2: '#1e88e5', tint: 'rgba(66,165,245,.14)',  hc: 'rgba(66,165,245,.6)',  tag: '单机', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
-  twentyfour:{ icon: '🧮', c1: '#ab47bc', c2: '#7b1fa2', tint: 'rgba(171,71,188,.14)',  hc: 'rgba(171,71,188,.6)',  tag: '单机', desc: '四张牌算出 24，答对赢额、答错扣额。' },
-  dice:      { icon: '🎲', c1: '#ec407a', c2: '#d81b60', tint: 'rgba(236,64,122,.14)',  hc: 'rgba(236,64,122,.6)',  tag: '单机', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
-  lottery:   { icon: '🎟️', c1: '#ffd54f', c2: '#f57f17', tint: 'rgba(255,213,79,.14)',  hc: 'rgba(255,213,79,.6)',  tag: '单机', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
-  market:    { icon: '📈', c1: '#ff5252', c2: '#c62828', tint: 'rgba(255,82,82,.14)',   hc: 'rgba(255,82,82,.6)',   tag: '24h', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
+  doudizhu:   { icon: '🃏', c1: '#ff6a4d', c2: '#ff2d78', tint: 'rgba(255,90,80,.15)',  tint2: 'rgba(255,90,80,.16)',  hc: 'rgba(255,90,80,.65)',  tag: '3人', desc: '三人一桌，叫地主 / 加倍 / 炸弹，经典斗地主规则。' },
+  xiangqi:    { icon: '♟️', c1: '#f5a623', c2: '#e07b39', tint: 'rgba(245,166,35,.15)', tint2: 'rgba(245,166,35,.16)', hc: 'rgba(245,166,35,.65)', tag: '2人', desc: '红黑对弈，将死对方获胜。两人实时对战，押注真实额度。' },
+  gomoku:     { icon: '⚫', c1: '#4dd0e1', c2: '#26a69a', tint: 'rgba(77,208,225,.15)', tint2: 'rgba(77,208,225,.16)', hc: 'rgba(77,208,225,.65)', tag: '2人', desc: '黑白对弈，连五即胜。规则简单，节奏快。' },
+  snake:      { icon: '🐍', c1: '#66bb6a', c2: '#2e7d32', tint: 'rgba(102,187,106,.15)', tint2: 'rgba(102,187,106,.16)', hc: 'rgba(102,187,106,.65)', tag: '单机', desc: '门票入场，吃食越多奖励越高，方向键 / 滑动操控。' },
+  breakout:   { icon: '🎮', c1: '#42a5f5', c2: '#1e88e5', tint: 'rgba(66,165,245,.15)', tint2: 'rgba(66,165,245,.16)', hc: 'rgba(66,165,245,.65)', tag: '单机', desc: '移动横板反弹球，打落方块接道具，破坏越多奖励越高。' },
+  twentyfour: { icon: '🧮', c1: '#ab47bc', c2: '#7b1fa2', tint: 'rgba(171,71,188,.15)', tint2: 'rgba(171,71,188,.16)', hc: 'rgba(171,71,188,.65)', tag: '单机', desc: '四张牌算出 24，答对赢额、答错扣额。' },
+  dice:       { icon: '🎲', c1: '#ec407a', c2: '#d81b60', tint: 'rgba(236,64,122,.15)', tint2: 'rgba(236,64,122,.16)', hc: 'rgba(236,64,122,.65)', tag: '单机', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
+  lottery:    { icon: '🎟️', c1: '#ffd54f', c2: '#f57f17', tint: 'rgba(255,213,79,.15)', tint2: 'rgba(255,213,79,.16)', hc: 'rgba(255,213,79,.65)', tag: '单机', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
+  market:     { icon: '📈', c1: '#ff5252', c2: '#c62828', tint: 'rgba(255,82,82,.15)',  tint2: 'rgba(255,82,82,.16)',  hc: 'rgba(255,82,82,.65)',  tag: '24h', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
 };
 
-// 静态兜底清单（/api/games 失败时使用）
 const STATIC = {
   pvp:    [ ['doudizhu','斗地主'], ['xiangqi','中国象棋'], ['gomoku','五子棋'] ],
   solo:   [ ['snake','贪吃蛇'], ['breakout','打砖块'], ['twentyfour','24点'], ['dice','猜大小'], ['lottery','双色球'] ],
@@ -342,14 +390,40 @@ const STATIC = {
 };
 
 function cardHTML(type, name, url) {
-  const m = GAME_META[type] || { icon: '🎮', c1: '#6c7cff', c2: '#b16cff', tint: 'rgba(108,124,255,.14)', hc: 'rgba(108,124,255,.6)', tag: '', desc: '' };
-  const style = '--c1:' + m.c1 + ';--c2:' + m.c2 + ';--tint:' + m.tint + ';--hc:' + m.hc + ';--hs:' + m.c1 + '66;';
+  const m = GAME_META[type] || { icon: '🎮', c1: '#6c7cff', c2: '#b16cff', tint: 'rgba(108,124,255,.15)', tint2: 'rgba(108,124,255,.16)', hc: 'rgba(108,124,255,.65)', tag: '', desc: '' };
+  const style = '--c1:' + m.c1 + ';--c2:' + m.c2 + ';--tint:' + m.tint + ';--tint2:' + m.tint2 + ';--hc:' + m.hc + ';--hs:' + m.c1 + '66;';
   return '<a class="game-card" href="/' + url + q + '" style="' + style + '">' +
-    '<div class="gc-icon">' + m.icon + '</div>' +
-    '<div class="gc-body"><div class="gc-name">' + name +
-      (m.tag ? '<span class="gc-tag">' + m.tag + '</span>' : '') +
-    '</div><div class="gc-desc">' + m.desc + '</div></div>' +
-    '<div class="gc-go">›</div></a>';
+    '<div class="gc-inner">' +
+      '<div class="gc-icon">' + m.icon + '</div>' +
+      '<div class="gc-body"><div class="gc-name">' + name +
+        (m.tag ? '<span class="gc-tag">' + m.tag + '</span>' : '') +
+      '</div><div class="gc-desc">' + m.desc + '</div></div>' +
+      '<div class="gc-go">›</div>' +
+    '</div></a>';
+}
+
+const hoverable = () => window.matchMedia('(hover: hover)').matches;
+
+function bindCard(card, i) {
+  card.classList.add('revealed');
+  card.style.transition = 'opacity .6s ease ' + (i * 45) + 'ms, transform .6s ease ' + (i * 45) + 'ms, border-color .25s ease, box-shadow .25s ease';
+  if (!hoverable()) return;
+  const inner = card.querySelector('.gc-inner');
+  card.addEventListener('mousemove', (e) => {
+    const r = card.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    card.style.setProperty('--mx', x + 'px');
+    card.style.setProperty('--my', y + 'px');
+    if (!inner) return;
+    const px = (x / r.width - 0.5), py = (y / r.height - 0.5);
+    inner.style.transition = 'none';
+    inner.style.transform = 'rotateX(' + (-py * 9).toFixed(2) + 'deg) rotateY(' + (px * 12).toFixed(2) + 'deg)';
+  });
+  card.addEventListener('mouseleave', () => {
+    if (!inner) return;
+    inner.style.transition = 'transform .5s cubic-bezier(.2,.7,.2,1)';
+    inner.style.transform = '';
+  });
 }
 
 function renderGames(el, items, wide) {
@@ -359,42 +433,57 @@ function renderGames(el, items, wide) {
     wrap.innerHTML = cardHTML(g.type, g.name, g.url);
     const node = wrap.firstElementChild;
     if (!node) return;
-    node.style.animationDelay = (i * 50) + 'ms';
     if (wide && i === 0) node.classList.add('wide');
     el.appendChild(node);
+    bindCard(node, i);
   });
 }
 
 function setCnt(id, n) { const e = document.getElementById(id); if (e) e.textContent = n ? n + ' 款' : ''; }
 
-// 优先按服务端 /api/games 动态渲染（禁用游戏自动隐藏），失败则回退到静态清单
+function animateCount() {
+  document.querySelectorAll('.count').forEach((el) => {
+    const to = +el.dataset.to || 0;
+    const t0 = performance.now(), dur = 1200;
+    function tick(t) {
+      const p = Math.min((t - t0) / dur, 1);
+      el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 async function loadGames() {
   const soloEl = document.getElementById('soloGames');
   const marketEl = document.getElementById('marketGames');
   const pvpEl = document.getElementById('pvpGames');
+  let pvp = [], solo = [], market = [];
   try {
     const j = await (await fetch('/api/games')).json();
     const list = (j.list || []).filter((g) => g.enabled !== false);
-    const byCat = (c) => list.filter((g) => g.category === c);
-    const pvp = byCat('pvp'), solo = byCat('solo'), market = byCat('market');
-    renderGames(pvpEl, pvp, false);
-    renderGames(soloEl, solo, false);
-    renderGames(marketEl, market, market.length <= 1);
-    setCnt('pvpCnt', pvp.length);
-    setCnt('soloCnt', solo.length);
-    setCnt('marketCnt', market.length);
+    pvp = list.filter((g) => g.category === 'pvp');
+    solo = list.filter((g) => g.category === 'solo');
+    market = list.filter((g) => g.category === 'market');
   } catch (e) {
-    renderGames(pvpEl, STATIC.pvp.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), false);
-    renderGames(soloEl, STATIC.solo.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), false);
-    renderGames(marketEl, STATIC.market.map(([t, n]) => ({ type: t, name: n, url: t + '.html' })), true);
-    setCnt('pvpCnt', STATIC.pvp.length);
-    setCnt('soloCnt', STATIC.solo.length);
-    setCnt('marketCnt', STATIC.market.length);
+    pvp = STATIC.pvp.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
+    solo = STATIC.solo.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
+    market = STATIC.market.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
   }
+  renderGames(pvpEl, pvp, false);
+  renderGames(soloEl, solo, false);
+  renderGames(marketEl, market, market.length <= 1);
+  setCnt('pvpCnt', pvp.length);
+  setCnt('soloCnt', solo.length);
+  setCnt('marketCnt', market.length);
+  const total = pvp.length + solo.length + market.length;
+  document.querySelector('[data-to="9"]').dataset.to = total;
+  document.querySelector('[data-to="3"]').dataset.to = pvp.length;
+  document.querySelector('[data-to="5"]').dataset.to = solo.length;
+  document.querySelector('[data-to="1"]').dataset.to = market.length;
 }
-loadGames();
 
-// ---- 凭房间码进入对战 ----
+// ---- 房间码进房 ----
 document.getElementById('btnJoin').onclick = async () => {
   const token = GCAuth.getToken();
   if (!token) { alert('请先登录 NewAPI 账号'); return; }
@@ -412,7 +501,6 @@ document.getElementById('btnJoin').onclick = async () => {
   } catch (e) { alert('网络错误，请稍后重试'); }
 };
 
-// ---- 登录条 ----
 GCAuth.renderAuthBar(document.getElementById('authBar'));
 
 // ---- 排行榜 ----
@@ -429,7 +517,6 @@ const LB = [
 ];
 const tabsEl = document.getElementById('lbTabs');
 const listEl = document.getElementById('lbList');
-
 LB.forEach((t, i) => {
   const b = document.createElement('button');
   b.className = 'lb-tab' + (i === 0 ? ' active' : '');
@@ -458,9 +545,7 @@ async function loadLB(idx) {
     let rows = [];
     if (t.type === 'market') {
       const j = await (await fetch('/api/market/leaderboard?limit=20')).json();
-      rows = (j.list || []).map((r) => ({
-        name: r.name, val: '$' + r.marketValue.toFixed(2), sub: r.stocks + ' 只 · 盈亏 ' + fmtUsd(r.pnl),
-      }));
+      rows = (j.list || []).map((r) => ({ name: r.name, val: '$' + r.marketValue.toFixed(2), sub: r.stocks + ' 只 · 盈亏 ' + fmtUsd(r.pnl) }));
     } else {
       const j = await (await fetch('/api/leaderboard?gameType=' + t.key + '&limit=20')).json();
       rows = (j.list || []).map((r) => t.type === 'solo'
@@ -475,14 +560,70 @@ async function loadLB(idx) {
   }
 }
 
-function fmtUsd(n) {
-  const v = Number(n || 0);
-  return (v >= 0 ? '+' : '') + '$' + v.toFixed(2);
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function fmtUsd(n) { const v = Number(n || 0); return (v >= 0 ? '+' : '') + '$' + v.toFixed(2); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---- 渐入观察 ----
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+// ---- 顶栏滚动态 ----
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 20), { passive: true });
+
+// ---- 光标光晕 ----
+if (hoverable()) {
+  const glow = document.getElementById('cursorGlow');
+  let gx = -999, gy = -999, tx = -999, ty = -999;
+  window.addEventListener('mousemove', (e) => { tx = e.clientX; ty = e.clientY; glow.style.opacity = 1; });
+  window.addEventListener('mouseleave', () => { glow.style.opacity = 0; });
+  (function loop() {
+    gx += (tx - gx) * 0.08; gy += (ty - gy) * 0.08;
+    glow.style.transform = 'translate(' + (gx - 260) + 'px,' + (gy - 260) + 'px)';
+    requestAnimationFrame(loop);
+  })();
 }
 
+// ---- 粒子背景 ----
+(function stars() {
+  const cv = document.getElementById('stars');
+  const ctx = cv.getContext('2d');
+  const colors = ['108,124,255', '177,108,255', '246,195,67'];
+  let W, H, pts = [], mx = -999, my = -999;
+  function resize() { W = cv.width = window.innerWidth; H = cv.height = window.innerHeight; seed(); }
+  function seed() {
+    const n = Math.min(90, Math.floor(W * H / 16000));
+    pts = Array.from({ length: n }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() * 1.6 + .4,
+      vx: (Math.random() - .5) * .18, vy: (Math.random() - .5) * .18,
+      c: colors[(Math.random() * colors.length) | 0], a: Math.random() * .5 + .15,
+    }));
+  }
+  if (hoverable()) window.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of pts) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -20) p.x = W + 20; else if (p.x > W + 20) p.x = -20;
+      if (p.y < -20) p.y = H + 20; else if (p.y > H + 20) p.y = -20;
+      const dx = p.x - mx, dy = p.y - my, d2 = dx * dx + dy * dy;
+      if (d2 < 16000) { const f = (1 - d2 / 16000) * .4; p.x += dx * f * .04; p.y += dy * f * .04; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + p.c + ',' + p.a + ')';
+      ctx.fill();
+    }
+    requestAnimationFrame(tick);
+  }
+  window.addEventListener('resize', resize);
+  resize(); tick();
+})();
+
+// ---- 启动 ----
+loadGames().then(animateCount);
 if (gid) {
   document.getElementById('hint').innerHTML = '进入游戏后使用 <b>NewAPI 账号</b>登录即可开始；邀请对战会由机器人回到群里广播。';
 }
