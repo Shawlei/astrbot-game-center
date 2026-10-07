@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>合成大西瓜</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  :root { --wm-accent: #ff8f3c; }
+  .game-wrap { display: flex; justify-content: center; margin: 4px 0 0; }
+  #board {
+    display: block; width: 100%; max-width: 400px; height: auto;
+    background: linear-gradient(180deg, #1a1f2e 0%, #141824 30%, #12151f 100%);
+    border: 1px solid var(--border); border-radius: 14px;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    cursor: crosshair;
+  }
+  .hud { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 4px; flex-wrap: wrap; }
+  .hud .score-box { text-align: left; }
+  .hud .score-box .s-label { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+  .hud .score-box .s-val { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.1; }
+  .hud .next-box { display: flex; align-items: center; gap: 8px; }
+  .hud .next-box .n-label { font-size: 11px; color: var(--muted); text-align: right; }
+  .hud canvas#nextCv { width: 44px; height: 44px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+  .hud .max-box { text-align: center; }
+  .hud .max-box .m-label { font-size: 11px; color: var(--muted); }
+  .hud .max-box .m-val { font-size: 15px; font-weight: 700; color: var(--accent); }
+  .wm-tip { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+  .wm-tip b { color: var(--text); }
+  .reward-hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🍉 合成大西瓜</div>
+    </div>
+    <span class="badge" id="gameBadge">免费玩 · 合成高级水果得额度</span>
+  </div>
+  <div id="authBar"></div>
+  <div class="card">
+    <div class="meta">两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成出菠萝/蜜瓜/西瓜可领小额额度奖励（每日封顶）。</div>
+
+    <div class="hud">
+      <div class="score-box">
+        <div class="s-label">得分</div>
+        <div class="s-val" id="score">0</div>
+      </div>
+      <div class="max-box">
+        <div class="m-label">最高合成</div>
+        <div class="m-val" id="maxLv">—</div>
+      </div>
+      <div class="next-box">
+        <div>
+          <div class="n-label">下一个</div>
+        </div>
+        <canvas id="nextCv" width="44" height="44"></canvas>
+      </div>
+    </div>
+
+    <div class="game-wrap">
+      <canvas id="board" width="400" height="620"></canvas>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="row">
+        <button id="btnStart" class="primary">开始游戏</button>
+        <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
+      </div>
+      <div class="wm-tip">操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成出 <b>菠萝(9级)</b> / <b>蜜瓜(10级)</b> / <b>西瓜(11级)</b> 才有额度奖励。</div>
+    </div>
+
+    <div class="result-box" id="result" style="display:none"></div>
+    <div class="status" id="status">登录后点「开始游戏」（未登录也可免费试玩，但无法领取额度）</div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const gid = params.get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+// ---- 常量（与 11 级水果） ----
+const W = 400, H = 620;
+const RADII = [0, 26, 32, 40, 48, 58, 68, 80, 94, 110, 130, 156];
+const NAMES = ['', '樱桃', '草莓', '葡萄', '橙子', '柿子', '苹果', '梨', '桃子', '菠萝', '蜜瓜', '西瓜'];
+const SCORE = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66];
+const DEATH_Y = 112;          // 警戒线（顶部）
+const GRAVITY = 0.72;
+const REST = 0.16;            // 碰撞恢复系数
+const FRICTION = 0.985;       // 水平摩擦
+const DAMP = 0.996;           // 速度阻尼
+
+const board = document.getElementById('board');
+const ctx = board.getContext('2d');
+const nextCv = document.getElementById('nextCv');
+const nctx = nextCv.getContext('2d');
+const scoreEl = document.getElementById('score');
+const maxLvEl = document.getElementById('maxLv');
+const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
+
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+board.width = W * dpr; board.height = H * dpr;
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+let quotaPerUnit = 500000;
+fetch('/api/health').then((r) => r.json()).then((j) => { if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit; }).catch(() => {});
+
+GCAuth.renderAuthBar(document.getElementById('authBar'));
+
+// ---- 游戏状态 ----
+let fruits = [];      // {level, x, y, vx, vy, age}
+let particles = [];   // 合成特效
+let current = null;   // 当前待放下的水果 {level, x, y}
+let nextLevel = 1;
+let score = 0, maxLevel = 0;
+let running = false, over = false;
+let danger = 0;       // 警戒累计（秒）
+let lastT = 0;
+
+function radius(level) { return RADII[level] || 26; }
+function randLevel() { const r = Math.random(); return r < 0.30 ? 1 : r < 0.55 ? 2 : r < 0.75 ? 3 : r < 0.90 ? 4 : 5; }
+
+function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+// ---- 水果绘制 ----
+function fruitColors(level) {
+  switch (level) {
+    case 1: return ['#ff7a6e', '#d64541'];
+    case 2: return ['#ff8a80', '#e53935'];
+    case 3: return ['#b984d4', '#8e44ad'];
+    case 4: return ['#ffc15e', '#f0932b'];
+    case 5: return ['#ffa06e', '#e67e22'];
+    case 6: return ['#ff7a66', '#c0392b'];
+    case 7: return ['#d4e795', '#8fae4f'];
+    case 8: return ['#ffd6c8', '#f0a08a'];
+    case 9: return ['#ffe266', '#f1c40f'];
+    case 10: return ['#b8e38a', '#6f9e45'];
+    case 11: return ['#4caf50', '#2e7d32'];
+    default: return ['#aaa', '#777'];
+  }
+}
+
+function drawFruit(c, x, y, r, level) {
+  const [c1, c2] = fruitColors(level);
+  const g = c.createRadialGradient(x - r * 0.35, y - r * 0.42, r * 0.08, x, y, r);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.18)';
+  c.lineWidth = 1.5;
+  c.stroke();
+
+  // 顶部高光
+  c.fillStyle = 'rgba(255,255,255,.45)';
+  c.beginPath();
+  c.ellipse(x - r * 0.32, y - r * 0.44, r * 0.30, r * 0.18, -0.65, 0, Math.PI * 2);
+  c.fill();
+
+  // 底部暗部
+  c.fillStyle = 'rgba(0,0,0,.10)';
+  c.beginPath();
+  c.ellipse(x + r * 0.15, y + r * 0.55, r * 0.55, r * 0.28, 0.3, 0, Math.PI * 2);
+  c.fill();
+
+  if (level === 11) { // 西瓜条纹
+    c.save();
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+    c.strokeStyle = 'rgba(18,55,22,.5)';
+    c.lineWidth = r * 0.14;
+    c.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      c.beginPath();
+      c.moveTo(x + i * r * 0.42, y - r);
+      c.quadraticCurveTo(x + i * r * 0.62, y, x + i * r * 0.42, y + r);
+      c.stroke();
+    }
+    c.restore();
+  } else if (level === 2) { // 草莓籽
+    c.fillStyle = 'rgba(255,240,200,.85)';
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      const px = x + Math.cos(a) * r * 0.55;
+      const py = y + Math.sin(a) * r * 0.55;
+      c.beginPath(); c.ellipse(px, py, r * 0.045, r * 0.07, a, 0, Math.PI * 2); c.fill();
+    }
+  } else if (level === 4) { // 橙子纹理点
+    c.fillStyle = 'rgba(200,110,20,.28)';
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + 0.3;
+      const px = x + Math.cos(a) * r * 0.5;
+      const py = y + Math.sin(a) * r * 0.5;
+      c.beginPath(); c.arc(px, py, r * 0.05, 0, Math.PI * 2); c.fill();
+    }
+  } else if (level === 9) { // 菠萝网格
+    c.save();
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+    c.strokeStyle = 'rgba(180,120,20,.35)';
+    c.lineWidth = 1.4;
+    const step = r * 0.32;
+    for (let k = -3; k <= 3; k++) {
+      c.beginPath(); c.moveTo(x + k * step - r, y - r); c.lineTo(x + k * step + r, y + r); c.stroke();
+      c.beginPath(); c.moveTo(x - r, y + k * step + r); c.lineTo(x + r, y + k * step - r); c.stroke();
+    }
+    c.restore();
+  } else if (level === 10) { // 蜜瓜网纹
+    c.save();
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+    c.strokeStyle = 'rgba(80,130,50,.30)';
+    c.lineWidth = 1.2;
+    for (let k = -4; k <= 4; k++) {
+      c.beginPath(); c.arc(x, y, r * 0.16 + Math.abs(k) * r * 0.2, 0, Math.PI * 2); c.stroke();
+    }
+    c.restore();
+  }
+}
+
+// ---- 物理 ----
+function spawnParticles(x, y, level) {
+  const [c1] = fruitColors(level);
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, life: 1, c: c1, r: 2 + Math.random() * 3 });
+  }
+}
+
+function step() {
+  // 积分
+  for (const f of fruits) {
+    f.vy += GRAVITY;
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vx *= FRICTION;
+    f.vy *= DAMP;
+    f.age = (f.age || 0) + 1;
+  }
+  // 墙壁
+  for (const f of fruits) {
+    const r = radius(f.level);
+    if (f.x < r) { f.x = r; f.vx = Math.abs(f.vx) * REST; }
+    if (f.x > W - r) { f.x = W - r; f.vx = -Math.abs(f.vx) * REST; }
+    if (f.y > H - r) { f.y = H - r; f.vy = -Math.abs(f.vy) * REST; f.vx *= 0.99; }
+    if (f.y < r) { f.y = r; f.vy = Math.abs(f.vy) * REST; }
+  }
+  // 合并优先于碰撞分离（同等级接触即合，链式）
+  if (merge()) return;
+  // 圆-圆碰撞（多次迭代）
+  for (let it = 0; it < 4; it++) {
+    for (let i = 0; i < fruits.length; i++) {
+      for (let j = i + 1; j < fruits.length; j++) {
+        const a = fruits[i], b = fruits[j];
+        const ra = radius(a.level), rb = radius(b.level);
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 0.0001;
+        const minD = ra + rb;
+        if (d < minD) {
+          const nx = dx / d, ny = dy / d;
+          const overlap = (minD - d) / 2;
+          a.x -= nx * overlap; a.y -= ny * overlap;
+          b.x += nx * overlap; b.y += ny * overlap;
+          // 相对速度沿法线分量
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          const vn = rvx * nx + rvy * ny;
+          if (vn < 0) {
+            const imp = -(1 + REST) * vn / 2;
+            a.vx -= imp * nx; a.vy -= imp * ny;
+            b.vx += imp * nx; b.vy += imp * ny;
+          }
+        }
+      }
+    }
+  }
+}
+
+function merge() {
+  let merged = false, guard = 0;
+  let did = true;
+  while (did && guard < 24) {
+    did = false; guard++;
+    outer:
+    for (let i = 0; i < fruits.length; i++) {
+      for (let j = i + 1; j < fruits.length; j++) {
+        const a = fruits[i], b = fruits[j];
+        if (a.level !== b.level || a.level >= 11) continue;
+        const ra = radius(a.level), rb = radius(b.level);
+        const dx = b.x - a.x, dy = b.y - a.y;
+        // 重叠 1px 以上即合成（merge 优先于碰撞分离，接触帧直接合并）
+        if (Math.hypot(dx, dy) < ra + rb - 1) {
+          const nl = a.level + 1;
+          const nx = (a.x + b.x) / 2, ny = (a.y + b.y) / 2;
+          const nvx = (a.vx + b.vx) / 2, nvy = (a.vy + b.vy) / 2;
+          fruits.splice(j, 1);
+          fruits.splice(i, 1);
+          fruits.push({ level: nl, x: nx, y: ny, vx: nvx, vy: nvy, age: Math.max(a.age || 0, b.age || 0) });
+          if (nl > maxLevel) { maxLevel = nl; updateMax(); }
+          score += SCORE[nl];
+          spawnParticles(nx, ny, nl);
+          merged = true; did = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+function updateMax() {
+  maxLvEl.textContent = maxLevel >= 1 ? NAMES[maxLevel] : '—';
+}
+
+// 警戒检测：有已落下水果压在警戒线上方超时 → 结束
+function checkDanger(dt) {
+  let any = false;
+  for (const f of fruits) {
+    if ((f.age || 0) > 30 && f.y < DEATH_Y) { any = true; break; }
+  }
+  danger = any ? danger + dt : 0;
+  if (danger > 1.5) gameOver();
+}
+
+// ---- 渲染 ----
+function drawGuide() {
+  if (!current) return;
+  const r = radius(current.level);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(current.x, current.y + r);
+  ctx.lineTo(current.x, H - 4);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // 警戒线
+  ctx.strokeStyle = 'rgba(255,90,90,.28)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 5]);
+  ctx.beginPath(); ctx.moveTo(0, DEATH_Y); ctx.lineTo(W, DEATH_Y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  drawGuide();
+  for (const f of fruits) drawFruit(ctx, f.x, f.y, radius(f.level), f.level);
+  if (current) drawFruit(ctx, current.x, current.y, radius(current.level), current.level);
+  // 粒子
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  scoreEl.textContent = score;
+  drawNext();
+}
+
+function drawNext() {
+  nctx.clearRect(0, 0, 44, 44);
+  drawFruit(nctx, 22, 22, Math.min(18, radius(nextLevel) * 0.7), nextLevel);
+}
+
+// ---- 主循环 ----
+let raf = null;
+function loop(t) {
+  if (!running && !particles.length) { return; }
+  const dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0;
+  lastT = t;
+  // 固定步长物理
+  step();
+  if (running && !over) checkDanger(dt);
+  // 粒子更新
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.03;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  render();
+  raf = requestAnimationFrame(loop);
+}
+
+// ---- 流程 ----
+function spawnCurrent() {
+  const lvl = nextLevel;
+  nextLevel = randLevel();
+  current = { level: lvl, x: W / 2, y: radius(lvl) };
+  drawNext();
+}
+
+async function gameOver() {
+  if (over) return;
+  over = true; running = false;
+  document.getElementById('btnEnd').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-block';
+  render();
+  await settleReward();
+}
+
+async function settleReward() {
+  const reached = maxLevel >= 9;
+  const token = GCAuth.getToken();
+  if (!reached) {
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div class="big">游戏结束</div><div>本局最高合成 <b>' + (maxLevel >= 1 ? NAMES[maxLevel] + '（' + maxLevel + '级）' : '无') + '</b> · 得分 ' + score + '</div><div>合成出 <b>菠萝(9级)</b> 及以上才有额度奖励，再试一局吧～</div>';
+    setStatus('点击「开始游戏」再来一局');
+    return;
+  }
+  setStatus('结算中…');
+  if (!token) {
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div class="big">🎉 合成了 ' + NAMES[maxLevel] + '！</div><div>本局得分 ' + score + '。你还没登录，登录后合成到 9 级及以上可领额度奖励。</div>';
+    setStatus('登录后可领取额度奖励');
+    return;
+  }
+  const r = await fetch('/api/solo/watermelon/reward', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, maxLevel }),
+  }).catch(() => null);
+  resultEl.style.display = 'block';
+  if (!r || r.status !== 200) {
+    const j = r ? await r.json().catch(() => ({})) : {};
+    resultEl.innerHTML = '<div class="big">🎉 合成了 ' + NAMES[maxLevel] + '！</div><div>本局得分 ' + score + '，但奖励发放失败：' + (j.error || '网络错误') + '</div>';
+    setStatus('奖励发放失败');
+    return;
+  }
+  const d = await r.json();
+  let html = '<div class="big" style="color:var(--green)">🎉 合成了 ' + NAMES[d.level] + '（' + d.level + '级）</div>';
+  if (d.rewardUsd > 0) {
+    html += '<div>本次奖励 <b style="color:var(--green)">+$' + d.rewardUsd.toFixed(2) + '</b> 已到账' + (d.capped ? '（已触及每日上限，按剩余额度发放）' : '') + '</div>';
+  } else if (d.capped) {
+    html += '<div>今日奖励额度已达上限（$' + d.dailyTotalUsd.toFixed(2) + '），本局不再发放。</div>';
+  } else {
+    html += '<div>本局未达奖励等级，再接再厉～</div>';
+  }
+  html += '<div>今日已领 <b>$' + d.dailyTotalUsd.toFixed(2) + '</b>，剩余可领 <b>$' + d.remainingUsd.toFixed(2) + '</b></div>';
+  if (d.quota != null) html += '<div>当前余额 <b>$' + (d.quota / quotaPerUnit).toFixed(4) + '</b></div>';
+  resultEl.innerHTML = html;
+  setStatus('点击「开始游戏」再来一局');
+}
+
+function start() {
+  if (running) return;
+  const token = GCAuth.getToken();
+  fruits = []; particles = [];
+  score = 0; maxLevel = 0; danger = 0;
+  over = false; running = true;
+  scoreEl.textContent = '0';
+  maxLvEl.textContent = '—';
+  resultEl.style.display = 'none';
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnEnd').style.display = 'inline-block';
+  nextLevel = randLevel();
+  spawnCurrent();
+  setStatus(token ? '游戏中：左右移动，点击放下' : '游戏中（未登录，结算时无法领取额度）');
+  if (!raf) { lastT = 0; raf = requestAnimationFrame(loop); }
+}
+
+function endManually() {
+  if (!running || over) return;
+  gameOver();
+}
+
+// ---- 输入 ----
+function boardPos(e) {
+  const rect = board.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) * (W / rect.width), y: (e.clientY - rect.top) * (H / rect.height) };
+}
+
+board.addEventListener('mousemove', (e) => {
+  if (!running || over || !current) return;
+  const p = boardPos(e);
+  const r = radius(current.level);
+  current.x = Math.max(r, Math.min(W - r, p.x));
+});
+board.addEventListener('click', (e) => {
+  if (!running || over || !current) return;
+  fruits.push({ level: current.level, x: current.x, y: current.y, vx: 0, vy: 0, age: 0 });
+  current = null;
+  spawnCurrent();
+});
+board.addEventListener('touchstart', (e) => {
+  if (!running || over || !current) return;
+  e.preventDefault();
+  const p = boardPos(e.touches[0]);
+  const r = radius(current.level);
+  current.x = Math.max(r, Math.min(W - r, p.x));
+}, { passive: false });
+board.addEventListener('touchmove', (e) => {
+  if (!running || over || !current) return;
+  e.preventDefault();
+  const p = boardPos(e.touches[0]);
+  const r = radius(current.level);
+  current.x = Math.max(r, Math.min(W - r, p.x));
+}, { passive: false });
+board.addEventListener('touchend', (e) => {
+  if (!running || over || !current) return;
+  e.preventDefault();
+  fruits.push({ level: current.level, x: current.x, y: current.y, vx: 0, vy: 0, age: 0 });
+  current = null;
+  spawnCurrent();
+}, { passive: false });
+
+document.getElementById('btnStart').onclick = start;
+document.getElementById('btnEnd').onclick = endManually;
+
+setStatus('登录后点「开始游戏」（未登录也可免费试玩，但无法领取额度）');
+
+// 调试/验证接口
+window.__wm = {
+  get fruits() { return fruits.length; },
+  get firstY() { return fruits.length ? Math.round(fruits[0].y) : -1; },
+  get score() { return score; },
+  get maxLevel() { return maxLevel; },
+  get running() { return running; },
+  get current() { return current ? current.level : null; },
+  get over() { return over; },
+  get danger() { return +danger.toFixed(2); },
+  debugDrop(level, x) { if (running && !over) fruits.push({ level, x: x != null ? x : W / 2, y: radius(level), vx: 0, vy: 0, age: 0 }); },
+};
+</script>
+</body>
+</html>

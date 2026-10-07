@@ -29,6 +29,7 @@ const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
 const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS, AI_PLAYER_FLOW, DELIST_ENABLED, DELIST_PCT, MM_MAX_USD } = require('./lib/market');
 const { Lottery } = require('./lib/lottery');
+const { WatermelonRewards } = require('./lib/watermelon');
 const { createAdminApp } = require('./lib/admin');
 
 const stats = new Stats(CONFIG.statsFile);
@@ -38,6 +39,7 @@ const lottery = new Lottery(CONFIG.lotteryFile, {
   getCfg: () => (CONFIG.games && CONFIG.games.lottery) || {},
   settle, stats, bindings,
 });
+const watermelonRewards = new WatermelonRewards(CONFIG.watermelonFile);
 
 const GAME_TYPES = {
   xiangqi: { name: '象棋', url: 'xiangqi.html', create: () => new XQ(), maxPlayers: 2 },
@@ -208,6 +210,7 @@ app.get('/api/games', (req, res) => {
     { type: 'breakout',  name: '打砖块',   url: 'breakout.html',  category: 'solo' },
     { type: 'twentyfour', name: '24点',    url: 'twentyfour.html', category: 'solo' },
     { type: 'dice',      name: '猜大小',   url: 'dice.html',      category: 'solo' },
+    { type: 'watermelon', name: '合成大西瓜', url: 'watermelon.html', category: 'solo' },
     { type: 'lottery',   name: '双色球',   url: 'lottery.html',   category: 'solo' },
     { type: 'market',    name: '虚拟股市', url: 'market.html',    category: 'market' },
   ];
@@ -599,6 +602,40 @@ app.post('/api/solo/dice/play', async (req, res) => {
       bet: betUsd, netUsd: usd(net),
       quota: settle.ready() ? await settle.balance(s.userId) : null,
       username: s.username,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- 合成大西瓜（免费玩，按最高合成等级发小额额度奖励，每日封顶） ----
+// 客户端上报当局最高合成等级 maxLevel（1~11）。服务端按等级发奖励，受每日每用户上限约束。
+app.post('/api/solo/watermelon/reward', async (req, res) => {
+  try {
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期，请先在大厅登录 NewAPI 账号' });
+    const cfg = gameCfg('watermelon');
+    if (!cfg.enabled) return res.status(400).json({ error: '合成大西瓜已被管理员禁用' });
+
+    let level = parseInt((req.body || {}).maxLevel, 10);
+    if (Number.isNaN(level)) level = 0;
+    level = Math.max(0, Math.min(11, level));
+
+    // 每日封顶判定 + 持久化（同步，防并发超发）
+    const r = watermelonRewards.claim(s.userId, level, cfg);
+
+    let quota = settle.ready() ? await settle.balance(s.userId) : null;
+    if (r.rewardUsd > 0 && settle.ready()) {
+      await settle.credit(s.userId, Math.round(r.rewardUsd * CONFIG.quotaPerUnit));
+      quota = await settle.balance(s.userId);
+    }
+    if (r.rewardUsd > 0) stats.recordSolo(s.userId, 'watermelon', Math.round(r.rewardUsd * CONFIG.quotaPerUnit));
+
+    res.json({
+      code: 'ok', level, reached: r.reached,
+      rewardUsd: r.rewardUsd, capped: r.capped,
+      dailyTotalUsd: r.dailyTotalUsd, remainingUsd: r.remainingUsd,
+      quota, username: s.username,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

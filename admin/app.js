@@ -92,6 +92,13 @@ const GAME_GROUPS = [
       { key: 'games.dice.maxBet', label: '押注上限（$）', type: 'number', fb: 'maxBet' },
       { key: 'games.dice.pointOdds', label: '猜点数赔率（默认 5，猜中返 1+5 倍）', type: 'number', step: '0.5' },
     ]},
+    { key: 'watermelon', name: '合成大西瓜', icon: '🍉', fields: [
+      { key: 'games.watermelon.enabled', label: '启用', type: 'bool' },
+      { key: 'games.watermelon.rewardCapUsd', label: '每人每日奖励上限（$，防刷）', type: 'number', step: '0.5' },
+      { key: 'games.watermelon.reward9Usd', label: '合成菠萝(9级) 单局奖励（$）', type: 'number', step: '0.1' },
+      { key: 'games.watermelon.reward10Usd', label: '合成蜜瓜(10级) 单局奖励（$）', type: 'number', step: '0.1' },
+      { key: 'games.watermelon.reward11Usd', label: '合成西瓜(11级) 单局奖励（$）', type: 'number', step: '0.1' },
+    ]},
   ]},
   { cat: '🎟️ 双色球彩票', games: [
     { key: 'lottery', name: '双色球', icon: '🎟️', fields: [
