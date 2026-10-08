@@ -94,6 +94,8 @@ const GAME_GROUPS = [
     ]},
     { key: 'watermelon', name: '合成大西瓜', icon: '🍉', fields: [
       { key: 'games.watermelon.enabled', label: '启用', type: 'bool' },
+      { key: 'games.watermelon.scoreMin', label: '单次合成得分下限（默认 10）', type: 'number' },
+      { key: 'games.watermelon.scoreMax', label: '单次合成得分上限（默认 1000）', type: 'number' },
       { key: 'games.watermelon.rewardCapUsd', label: '每人每日奖励上限（$，防刷）', type: 'number', step: '0.5' },
       { key: 'games.watermelon.rewardMinLevel', label: '领奖最低合成等级（默认 9 菠萝）', type: 'number' },
       { key: 'games.watermelon.rewardPerScoreUsd', label: '每分奖励（$，约每 400 分 = $1）', type: 'number', step: '0.0005' },

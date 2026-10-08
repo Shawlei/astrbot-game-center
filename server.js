@@ -609,6 +609,22 @@ app.post('/api/solo/dice/play', async (req, res) => {
 });
 
 // ---- 合成大西瓜（免费玩，按得分发额度奖励，每日封顶） ----
+
+// 生效参数（公开只读）：前端据此渲染得分表与奖励文案；后台保存后这里即时反映最新值
+app.get('/api/solo/watermelon/config', (req, res) => {
+  const c = gameCfg('watermelon');
+  res.json({
+    enabled: c.enabled !== false,
+    scoreMin: c.scoreMin != null ? c.scoreMin : 10,
+    scoreMax: c.scoreMax != null ? c.scoreMax : 1000,
+    rewardMinLevel: c.rewardMinLevel != null ? c.rewardMinLevel : 9,
+    rewardPerScoreUsd: c.rewardPerScoreUsd != null ? c.rewardPerScoreUsd : 0.0025,
+    rewardMinUsd: c.rewardMinUsd != null ? c.rewardMinUsd : 0.5,
+    rewardMaxUsd: c.rewardMaxUsd != null ? c.rewardMaxUsd : 5,
+    rewardCapUsd: c.rewardCapUsd != null ? c.rewardCapUsd : 20,
+  });
+});
+
 // 客户端上报当局最高合成等级 maxLevel（1~11）与本局累计得分 score。
 // 服务端按「分数 × 每分系数」计算奖励（夹在单局上下限之间），受每日每用户上限约束。
 app.post('/api/solo/watermelon/reward', async (req, res) => {

@@ -41,7 +41,7 @@
   </div>
   <div id="authBar"></div>
   <div class="card">
-    <div class="meta">两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成到 <b>菠萝(9级)</b> 及以上即可领额度，<b>奖励按本局得分计算</b>（每日封顶）。</div>
+    <div class="meta" id="wmMeta">两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成到 <b>菠萝(9级)</b> 及以上即可领额度，<b>奖励按本局得分计算</b>（每日封顶）。</div>
 
     <div class="hud">
       <div class="score-box">
@@ -69,7 +69,7 @@
         <button id="btnStart" class="primary">开始游戏</button>
         <button id="btnEnd" class="danger" style="display:none">结束并结算</button>
       </div>
-      <div class="wm-tip">操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成到 <b>菠萝(9级)</b> 及以上才能领奖，奖励按本局得分结算（约每 400 分 $1，单局保底 $0.5、封顶 $5）。</div>
+      <div class="wm-tip" id="wmTip">操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成到 <b>菠萝(9级)</b> 及以上才能领奖，奖励按本局得分结算（约每 400 分 $1，单局保底 $0.5、封顶 $5）。</div>
     </div>
 
     <div class="result-box" id="result" style="display:none"></div>
@@ -87,7 +87,17 @@ document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURICompon
 const W = 400, H = 620;
 const RADII = [0, 26, 32, 40, 48, 58, 68, 80, 94, 110, 130, 156];
 const NAMES = ['', '樱桃', '草莓', '葡萄', '橙子', '柿子', '苹果', '梨', '桃子', '菠萝', '蜜瓜', '西瓜'];
-const SCORE = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66];
+// 得分表：按后台配置动态生成（单次合成最低 scoreMin 分、最高 scoreMax 分，曲线越高级越值钱）
+function buildScoreTable(minS, maxS) {
+  const lo = Number(minS) > 0 ? Number(minS) : 10;
+  const hi = Number(maxS) > lo ? Number(maxS) : lo * 100;
+  const t = [0, 0];
+  for (let lv = 2; lv <= 11; lv++) {
+    const p = (lv - 2) / 9; // 2级=0 … 11级=1
+    t[lv] = Math.round(lo + (hi - lo) * Math.pow(p, 1.9));
+  }
+  return t;
+}
 const DEATH_Y = 112;          // 警戒线（顶部）
 const GRAVITY = 0.72;
 const REST = 0.16;            // 碰撞恢复系数
@@ -109,6 +119,28 @@ ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 let quotaPerUnit = 500000;
 fetch('/api/health').then((r) => r.json()).then((j) => { if (j.quotaPerUnit) quotaPerUnit = j.quotaPerUnit; }).catch(() => {});
+
+// ---- 生效参数（后台「游戏设置→合成大西瓜」保存后刷新页面即生效） ----
+let wmCfg = {
+  scoreMin: 10, scoreMax: 1000,
+  rewardMinLevel: 9, rewardPerScoreUsd: 0.0025,
+  rewardMinUsd: 0.5, rewardMaxUsd: 5, rewardCapUsd: 20,
+};
+let SCORE = buildScoreTable(wmCfg.scoreMin, wmCfg.scoreMax);
+
+function applyWmCfg(c) {
+  if (c && typeof c === 'object') Object.assign(wmCfg, c);
+  SCORE = buildScoreTable(wmCfg.scoreMin, wmCfg.scoreMax);
+  const per = Number(wmCfg.rewardPerScoreUsd) > 0 ? Number(wmCfg.rewardPerScoreUsd) : 0.0025;
+  const perScore = Math.round(1 / per);
+  const minLv = wmCfg.rewardMinLevel != null ? wmCfg.rewardMinLevel : 9;
+  const lvName = (NAMES[minLv] || '菠萝') + '（' + minLv + '级）';
+  const meta = document.getElementById('wmMeta');
+  const tip = document.getElementById('wmTip');
+  if (meta) meta.innerHTML = '两个相同的水果碰撞会合成更大的水果，一路合到西瓜！免费畅玩，合成到 <b>' + lvName + '</b> 及以上即可领额度，<b>奖励按本局得分计算</b>（每日上限 $' + wmCfg.rewardCapUsd + '）。';
+  if (tip) tip.innerHTML = '操作：<b>左右移动</b>鼠标 / 手指定位，<b>点击 / 松手</b>放下水果。合成到 <b>' + lvName + '</b> 及以上才能领奖，奖励按本局得分结算（每 ' + perScore + ' 分 $1，单局保底 $' + wmCfg.rewardMinUsd + '、封顶 $' + wmCfg.rewardMaxUsd + '）。';
+}
+fetch('/api/solo/watermelon/config').then((r) => r.json()).then(applyWmCfg).catch(() => {});
 
 GCAuth.renderAuthBar(document.getElementById('authBar'));
 
@@ -436,8 +468,7 @@ function step() {
     if (f.y < r) { f.y = r; f.vy = Math.abs(f.vy) * REST; }
   }
   // 合并优先于碰撞分离（同等级接触即合，链式）
-  if (merge()) return;
-  // 圆-圆碰撞（多次迭代）
+  if (merge()) return;  // 圆-圆碰撞（多次迭代）
   for (let it = 0; it < 4; it++) {
     for (let i = 0; i < fruits.length; i++) {
       for (let j = i + 1; j < fruits.length; j++) {
@@ -477,8 +508,9 @@ function merge() {
         if (a.level !== b.level || a.level >= 11) continue;
         const ra = radius(a.level), rb = radius(b.level);
         const dx = b.x - a.x, dy = b.y - a.y;
-        // 重叠 1px 以上即合成（merge 优先于碰撞分离，接触帧直接合并）
-        if (Math.hypot(dx, dy) < ra + rb - 1) {
+        // 接触即合（容差 2px）：碰撞分离会把并排水果精确推到「刚好接触」(d=ra+rb)，
+        // 重力下两者同步下落距离不再缩小，若要求重叠则永远合不成 → 允许接触/极近即合并
+        if (Math.hypot(dx, dy) <= ra + rb + 2) {
           const nl = a.level + 1;
           const nx = (a.x + b.x) / 2, ny = (a.y + b.y) / 2;
           const nvx = (a.vx + b.vx) / 2, nvy = (a.vy + b.vy) / 2;
@@ -501,11 +533,13 @@ function updateMax() {
   maxLvEl.textContent = maxLevel >= 1 ? NAMES[maxLevel] : '—';
 }
 
-// 警戒检测：有已落下水果压在警戒线上方超时 → 结束
+// 警戒检测：已落定水果的「顶边」越过警戒线超时 → 结束。
+// 须用顶边 (f.y - r) 而非中心：大水果（桃子 r=94 / 西瓜 r=156）中心还在线下时
+// 顶部早已探出斩杀线很远，按中心判定会永远不结算。
 function checkDanger(dt) {
   let any = false;
   for (const f of fruits) {
-    if ((f.age || 0) > 30 && f.y < DEATH_Y) { any = true; break; }
+    if ((f.age || 0) > 30 && f.y - radius(f.level) < DEATH_Y) { any = true; break; }
   }
   danger = any ? danger + dt : 0;
   if (danger > 1.5) gameOver();
@@ -591,18 +625,20 @@ async function gameOver() {
 }
 
 async function settleReward() {
-  const reached = maxLevel >= 9;
+  const minLv = wmCfg.rewardMinLevel != null ? wmCfg.rewardMinLevel : 9;
+  const lvName = (NAMES[minLv] || '菠萝') + '（' + minLv + '级）';
+  const reached = maxLevel >= minLv;
   const token = GCAuth.getToken();
   if (!reached) {
     resultEl.style.display = 'block';
-    resultEl.innerHTML = '<div class="big">游戏结束</div><div>本局最高合成 <b>' + (maxLevel >= 1 ? NAMES[maxLevel] + '（' + maxLevel + '级）' : '无') + '</b> · 得分 ' + score + '</div><div>合成出 <b>菠萝(9级)</b> 及以上才有额度奖励，再试一局吧～</div>';
+    resultEl.innerHTML = '<div class="big">游戏结束</div><div>本局最高合成 <b>' + (maxLevel >= 1 ? NAMES[maxLevel] + '（' + maxLevel + '级）' : '无') + '</b> · 得分 ' + score + '</div><div>合成出 <b>' + lvName + '</b> 及以上才有额度奖励，再试一局吧～</div>';
     setStatus('点击「开始游戏」再来一局');
     return;
   }
   setStatus('结算中…');
   if (!token) {
     resultEl.style.display = 'block';
-    resultEl.innerHTML = '<div class="big">🎉 合成了 ' + NAMES[maxLevel] + '！</div><div>本局得分 ' + score + '。你还没登录，登录后合成到 9 级及以上可领额度奖励。</div>';
+    resultEl.innerHTML = '<div class="big">🎉 合成了 ' + NAMES[maxLevel] + '！</div><div>本局得分 ' + score + '。你还没登录，登录后合成到 ' + minLv + ' 级及以上可领额度奖励。</div>';
     setStatus('登录后可领取额度奖励');
     return;
   }
@@ -636,6 +672,8 @@ async function settleReward() {
 function start() {
   if (running) return;
   const token = GCAuth.getToken();
+  // 每局开始前拉取最新生效参数（后台改完无需刷新页面，下一局即生效）
+  fetch('/api/solo/watermelon/config').then((r) => r.json()).then(applyWmCfg).catch(() => {});
   fruits = []; particles = [];
   score = 0; maxLevel = 0; danger = 0;
   over = false; running = true;
@@ -710,6 +748,9 @@ window.__wm = {
   get current() { return current ? current.level : null; },
   get over() { return over; },
   get danger() { return +danger.toFixed(2); },
+  get scoreTable() { return SCORE.slice(); },
+  get cfg() { return Object.assign({}, wmCfg); },
+  get tipText() { return (document.getElementById('wmTip') || {}).textContent || ''; },
   debugDrop(level, x) { if (running && !over) fruits.push({ level, x: x != null ? x : W / 2, y: radius(level), vx: 0, vy: 0, age: 0 }); },
 };
 </script>
