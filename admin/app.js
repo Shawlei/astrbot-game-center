@@ -103,7 +103,7 @@ const GAME_GROUPS = [
       { key: 'games.watermelon.rewardMaxUsd', label: '单局最高奖励（$，封顶）', type: 'number', step: '0.5' },
     ]},
   ]},
-  { cat: '🎟️ 双色球彩票', games: [
+  { cat: '🎟️ 彩票专区', games: [
     { key: 'lottery', name: '双色球', icon: '🎟️', fields: [
       { key: 'games.lottery.enabled', label: '启用', type: 'bool' },
       { key: 'games.lottery.drawTime', label: '每日开奖时间（HH:mm，北京时间）', type: 'text' },
@@ -116,6 +116,12 @@ const GAME_GROUPS = [
       { key: 'games.lottery.prize4Mult', label: '四等奖倍数（5+0/4+1）', type: 'number' },
       { key: 'games.lottery.prize5Mult', label: '五等奖倍数（4+0/3+1）', type: 'number' },
       { key: 'games.lottery.prize6Mult', label: '六等奖倍数（中蓝球）', type: 'number' },
+    ]},
+    { key: 'scratch', name: '刮刮乐', icon: '🪙', fields: [
+      { key: 'games.scratch.enabled', label: '启用', type: 'bool' },
+      { key: 'games.scratch.returnRate', label: '返奖率（0.1~0.95，默认 0.65；中奖率按奖金表自动反推）', type: 'number', step: '0.05' },
+      { key: 'games.scratch.dailyWinCapUsd', label: '每人每日中奖总额上限（$，0=不限）', type: 'number', step: '10' },
+      { key: 'games.scratch.denoms', label: '开放面值（逗号分隔，可选 5/10/20/50/100）', type: 'text' },
     ]},
   ]},
   { cat: '📈 模拟股市', games: [
@@ -272,6 +278,11 @@ function loadDash() {
       cards.push(['彩票期号', s.lottery.currentIssue + (s.lottery.status === 'selling' ? '（销售中）' : '')]);
       cards.push(['一等奖奖池', '$' + (s.lottery.jackpot / (s.lottery.quotaPerUnit || 500000)).toFixed(2)]);
       cards.push(['开奖时间', s.lottery.drawTime + ' 每日']);
+    }
+    if (s.scratch) {
+      cards.push(['刮刮乐今日售出', s.scratch.soldToday + ' 张']);
+      cards.push(['刮刮乐今日收/派', '$' + Number(s.scratch.incomeTodayUsd).toLocaleString() + ' / $' + Number(s.scratch.paidTodayUsd).toLocaleString()]);
+      cards.push(['刮刮乐未结算', s.scratch.unsettled + ' 张']);
     }
     cards.push(['绑定关系', s.bindingsCount]);
     $('dashCards').innerHTML = cards.map(([k, v, cls]) =>
@@ -443,8 +454,8 @@ function loadHoldings(uid) {
 }
 
 function loadGameLB() {
-  const games = ['doudizhu', 'xiangqi', 'gomoku', 'snake', 'breakout', 'twentyfour', 'dice', 'lottery'];
-  const names = { doudizhu: '斗地主', xiangqi: '象棋', gomoku: '五子棋', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点', dice: '猜大小', lottery: '双色球' };
+  const games = ['doudizhu', 'xiangqi', 'gomoku', 'snake', 'breakout', 'twentyfour', 'dice', 'lottery', 'scratch'];
+  const names = { doudizhu: '斗地主', xiangqi: '象棋', gomoku: '五子棋', snake: '贪吃蛇', breakout: '打砖块', twentyfour: '24点', dice: '猜大小', lottery: '双色球', scratch: '刮刮乐' };
   let sel = currentGameType || 'doudizhu';
   $('dataBody').innerHTML = `<div class="save-row">
     <select id="gameSel" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit">

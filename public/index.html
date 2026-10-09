@@ -351,6 +351,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   </section>
 
   <section class="section reveal">
+    <div class="section-head"><div class="ico">🎟️</div><div class="ttl">彩票专区</div><div class="cnt" id="lotteryCnt"></div></div>
+    <div class="games" id="lotteryGames"></div>
+  </section>
+
+  <section class="section reveal">
     <div class="section-head"><div class="ico">📈</div><div class="ttl">模拟股市</div><div class="cnt" id="marketCnt"></div></div>
     <div class="games" id="marketGames"></div>
   </section>
@@ -381,13 +386,15 @@ const GAME_META = {
   twentyfour: { icon: '🧮', c1: '#ab47bc', c2: '#7b1fa2', tint: 'rgba(171,71,188,.15)', tint2: 'rgba(171,71,188,.16)', hc: 'rgba(171,71,188,.65)', tag: '单机', desc: '四张牌算出 24，答对赢额、答错扣额。' },
   dice:       { icon: '🎲', c1: '#ec407a', c2: '#d81b60', tint: 'rgba(236,64,122,.15)', tint2: 'rgba(236,64,122,.16)', hc: 'rgba(236,64,122,.65)', tag: '单机', desc: '三骰猜大小（1:1），或猜单骰点数（高赔率）。' },
   watermelon: { icon: '🍉', c1: '#66bb6a', c2: '#2e7d32', tint: 'rgba(102,187,106,.15)', tint2: 'rgba(102,187,106,.16)', hc: 'rgba(102,187,106,.65)', tag: '免费', desc: '同水果碰撞合成更大的，一路合到西瓜。合成高级水果领小额额度奖励。' },
-  lottery:    { icon: '🎟️', c1: '#ffd54f', c2: '#f57f17', tint: 'rgba(255,213,79,.15)', tint2: 'rgba(255,213,79,.16)', hc: 'rgba(255,213,79,.65)', tag: '单机', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
+  lottery:    { icon: '🎟️', c1: '#ffd54f', c2: '#f57f17', tint: 'rgba(255,213,79,.15)', tint2: 'rgba(255,213,79,.16)', hc: 'rgba(255,213,79,.65)', tag: '彩票', desc: '6红+1蓝，每日 20:00 开奖，一等奖奖池滚存，支持复式多倍。' },
+  scratch:    { icon: '🪙', c1: '#f0b429', c2: '#b3273a', tint: 'rgba(240,180,41,.15)', tint2: 'rgba(240,180,41,.16)', hc: 'rgba(240,180,41,.65)', tag: '彩票', desc: '$5~$100 五档面值，刮开比对中奖号码，兼中兼得，💰 翻 10 倍。返奖率 65%。' },
   market:     { icon: '📈', c1: '#ff5252', c2: '#c62828', tint: 'rgba(255,82,82,.15)',  tint2: 'rgba(255,82,82,.16)',  hc: 'rgba(255,82,82,.65)',  tag: '24h', desc: '10 只虚拟股票 24h 实时波动，低买高卖。投入无上限，最低 $1000。' },
 };
 
 const STATIC = {
   pvp:    [ ['doudizhu','斗地主'], ['xiangqi','中国象棋'], ['gomoku','五子棋'] ],
-  solo:   [ ['snake','贪吃蛇'], ['breakout','打砖块'], ['twentyfour','24点'], ['dice','猜大小'], ['watermelon','合成大西瓜'], ['lottery','双色球'] ],
+  solo:   [ ['snake','贪吃蛇'], ['breakout','打砖块'], ['twentyfour','24点'], ['dice','猜大小'], ['watermelon','合成大西瓜'] ],
+  lottery:[ ['lottery','双色球'], ['scratch','刮刮乐'] ],
   market: [ ['market','虚拟股市'] ],
 };
 
@@ -460,25 +467,30 @@ async function loadGames() {
   const soloEl = document.getElementById('soloGames');
   const marketEl = document.getElementById('marketGames');
   const pvpEl = document.getElementById('pvpGames');
-  let pvp = [], solo = [], market = [];
+  const lotteryEl = document.getElementById('lotteryGames');
+  let pvp = [], solo = [], market = [], lotteryGames = [];
   try {
     const j = await (await fetch('/api/games')).json();
     const list = (j.list || []).filter((g) => g.enabled !== false);
     pvp = list.filter((g) => g.category === 'pvp');
     solo = list.filter((g) => g.category === 'solo');
+    lotteryGames = list.filter((g) => g.category === 'lottery');
     market = list.filter((g) => g.category === 'market');
   } catch (e) {
     pvp = STATIC.pvp.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
     solo = STATIC.solo.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
+    lotteryGames = STATIC.lottery.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
     market = STATIC.market.map(([t, n]) => ({ type: t, name: n, url: t + '.html' }));
   }
   renderGames(pvpEl, pvp, false);
   renderGames(soloEl, solo, false);
+  renderGames(lotteryEl, lotteryGames, false);
   renderGames(marketEl, market, market.length <= 1);
   setCnt('pvpCnt', pvp.length);
   setCnt('soloCnt', solo.length);
+  setCnt('lotteryCnt', lotteryGames.length);
   setCnt('marketCnt', market.length);
-  const total = pvp.length + solo.length + market.length;
+  const total = pvp.length + solo.length + lotteryGames.length + market.length;
   document.querySelector('[data-to="9"]').dataset.to = total;
   document.querySelector('[data-to="3"]').dataset.to = pvp.length;
   document.querySelector('[data-to="5"]').dataset.to = solo.length;
@@ -512,6 +524,7 @@ const LB = [
   { key: 'twentyfour', label: '24点', type: 'solo' },
   { key: 'dice', label: '猜大小', type: 'solo' },
   { key: 'lottery', label: '双色球', type: 'solo' },
+  { key: 'scratch', label: '刮刮乐', type: 'solo' },
   { key: 'doudizhu', label: '斗地主', type: 'pvp' },
   { key: 'xiangqi', label: '象棋', type: 'pvp' },
   { key: 'gomoku', label: '五子棋', type: 'pvp' },

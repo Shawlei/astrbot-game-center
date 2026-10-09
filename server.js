@@ -29,6 +29,7 @@ const ai = require('./lib/ai');
 const aiNews = require('./lib/aiNews');
 const { Market, MIN_BUY_USD, BUY_FEE_RATE, SELL_FEE_RATE, LIMIT_PCT, T0_LIMIT_PCT, TRADING, AI_DRIVEN, AI_PROFILES, AI_EARNINGS, AI_RECAP, AI_DRAGON_TIGER, AI_LOCK_DECISIONS, AI_PLAYER_FLOW, DELIST_ENABLED, DELIST_PCT, MM_MAX_USD } = require('./lib/market');
 const { Lottery } = require('./lib/lottery');
+const { Scratch } = require('./lib/scratch');
 const { WatermelonRewards } = require('./lib/watermelon');
 const { createAdminApp } = require('./lib/admin');
 
@@ -38,6 +39,11 @@ const lottery = new Lottery(CONFIG.lotteryFile, {
   getQuotaPerUnit: () => CONFIG.quotaPerUnit,
   getCfg: () => (CONFIG.games && CONFIG.games.lottery) || {},
   settle, stats, bindings,
+});
+const scratch = new Scratch(CONFIG.scratchFile, CONFIG.scratchDailyFile, {
+  getQuotaPerUnit: () => CONFIG.quotaPerUnit,
+  getCfg: () => (CONFIG.games && CONFIG.games.scratch) || {},
+  settle, stats,
 });
 const watermelonRewards = new WatermelonRewards(CONFIG.watermelonFile);
 
@@ -211,7 +217,8 @@ app.get('/api/games', (req, res) => {
     { type: 'twentyfour', name: '24点',    url: 'twentyfour.html', category: 'solo' },
     { type: 'dice',      name: '猜大小',   url: 'dice.html',      category: 'solo' },
     { type: 'watermelon', name: '合成大西瓜', url: 'watermelon.html', category: 'solo' },
-    { type: 'lottery',   name: '双色球',   url: 'lottery.html',   category: 'solo' },
+    { type: 'lottery',   name: '双色球',   url: 'lottery.html',   category: 'lottery' },
+    { type: 'scratch',   name: '刮刮乐',   url: 'scratch.html',   category: 'lottery' },
     { type: 'market',    name: '虚拟股市', url: 'market.html',    category: 'market' },
   ];
   const list = catalog.map((g) => {
@@ -698,6 +705,53 @@ app.post('/api/lottery/buy', async (req, res) => {
     if (r.error) return res.status(400).json({ error: r.error });
     const quota = settle.ready() ? await settle.balance(s.userId) : null;
     res.json({ code: 'ok', ...r, quota });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- 刮刮乐（即开型彩票） ----
+
+// 公开信息：面值/奖级表/中奖率/返奖率/最近大奖
+app.get('/api/scratch/info', (req, res) => {
+  res.json(scratch.info());
+});
+
+// 我的卡（近 30 张，未结算在前）+ 今日已中/每日上限
+app.get('/api/scratch/my', async (req, res) => {
+  try {
+    const s = auth.resolve(req.query.token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
+    res.json(await scratch.my(s.userId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 购卡：扣款 → 服务端生成卡面（买入即定生死，刮开只是揭示）
+app.post('/api/scratch/buy', async (req, res) => {
+  try {
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期，请先在大厅登录 NewAPI 账号' });
+    const { denom } = req.body || {};
+    const r = await scratch.buy(s.userId, s.username, denom);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ code: 'ok', card: r.card, quota: r.balance });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 结算（刮开完成或一键刮开后调用；幂等，按服务端卡面派奖）
+app.post('/api/scratch/settle', async (req, res) => {
+  try {
+    const s = auth.resolve((req.body || {}).token);
+    if (!s) return res.status(401).json({ error: '未登录或登录已过期' });
+    const { cardId } = req.body || {};
+    if (!cardId) return res.status(400).json({ error: '缺少 cardId' });
+    const r = await scratch.settle(s.userId, cardId);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ code: 'ok', ...r });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1425,6 +1479,9 @@ setInterval(() => {
 // ---- 彩票：到点开奖 / 换期 / 补开漏开（5s 粒度，保证每天 20:00 准点开奖） ----
 setInterval(() => { lottery.tick(); }, 5000).unref();
 
+// ---- 刮刮乐：24h 未刮自动结算（60s 粒度足够） ----
+setInterval(() => { scratch.tick().catch(() => {}); }, 60000).unref();
+
 // ---- 启动 ----
 (async () => {
   await settle.init(CONFIG.mysql);
@@ -1457,7 +1514,7 @@ setInterval(() => { lottery.tick(); }, 5000).unref();
       config.applyLive(CONFIG, partial);
       console.log('[game-center] 配置已热更新（押注/游戏开关即时生效，股市规则/端口等需重启）');
     },
-    settle, market, stats, bindings, lottery,
+    settle, market, stats, bindings, lottery, scratch,
     bindingsFresh: () => bindings.list(),
     getRooms: () => rooms,
     getSoloSessions: () => soloSessions,

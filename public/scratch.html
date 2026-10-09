@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刮刮乐</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.card + .card { margin-top: 14px; }
+
+.gg-banner {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  background: linear-gradient(135deg, rgba(240,180,41,.16), rgba(224,86,92,.12));
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px;
+}
+.gg-banner .col { flex: 1; min-width: 150px; }
+.gg-banner .label { font-size: 12px; color: var(--muted); }
+.gg-banner .val { font-size: 20px; font-weight: 800; color: var(--gold); margin-top: 2px; }
+.gg-banner .meta { font-size: 13px; color: var(--muted); line-height: 1.9; }
+.gg-banner .meta b { color: var(--text); }
+
+.sec-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 18px 0 10px; }
+.sec-title .hint { font-weight: 400; font-size: 12px; color: var(--muted); margin-left: 8px; }
+
+.denom-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
+.denom {
+  border: 2px solid var(--border); border-radius: 12px; padding: 12px 8px; text-align: center;
+  cursor: pointer; background: var(--panel-2); transition: all .12s ease; user-select: none;
+}
+.denom:hover { transform: translateY(-2px); border-color: var(--accent); }
+.denom.on { border-color: var(--gold); background: linear-gradient(160deg, rgba(240,180,41,.18), rgba(240,180,41,.05)); box-shadow: 0 3px 10px rgba(240,180,41,.25); }
+.denom .face { font-size: 22px; font-weight: 800; color: var(--gold); }
+.denom .sub { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+.denom .sub b { color: var(--green); }
+
+.buy-btn { width: 100%; margin-top: 14px; padding: 14px; font-size: 16px; }
+
+/* ---- 刮刮乐卡面 ---- */
+#scratchCard { display: none; }
+.ticket-face {
+  border-radius: 16px; padding: 18px; position: relative; overflow: hidden;
+  background: linear-gradient(150deg, #b3273a, #7c1d2c 55%, #5e1520);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.ticket-face .tf-head { display: flex; justify-content: space-between; align-items: center; color: #ffd98a; font-weight: 800; }
+.ticket-face .tf-head .face-val { font-size: 20px; }
+.ticket-face .tf-head .tf-id { font-size: 11px; opacity: .7; font-weight: 400; }
+.ticket-face .tf-label { text-align: center; font-size: 12px; color: rgba(255,255,255,.75); margin: 14px 0 8px; letter-spacing: 2px; }
+.win-nums { display: flex; gap: 12px; justify-content: center; }
+.win-num {
+  width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 900; color: #7c1d2c;
+  background: radial-gradient(circle at 32% 30%, #ffe9b0, #f0b429);
+  box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.15);
+}
+
+.cell-zone { position: relative; margin-top: 6px; }
+.cell-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cell {
+  aspect-ratio: 1; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.94); color: #333; gap: 2px;
+}
+.cell .cnum { font-size: 20px; font-weight: 900; line-height: 1; }
+.cell .cprize { font-size: 11px; color: #888; font-weight: 700; }
+.cell .cx10 { font-size: 13px; line-height: 1; }
+.cell.win { background: linear-gradient(160deg, #ffe9b0, #ffd058); box-shadow: 0 0 0 2px #f0b429, 0 0 14px rgba(240,180,41,.7); }
+.cell.win .cnum, .cell.win .cprize { color: #7c4a00; }
+
+#scratchCanvas { position: absolute; inset: 0; border-radius: 10px; cursor: crosshair; touch-action: none; transition: opacity .5s; }
+#scratchCanvas.faded { opacity: 0; pointer-events: none; }
+
+.tf-actions { display: flex; gap: 10px; margin-top: 14px; }
+.tf-actions button { flex: 1; padding: 12px; font-size: 14px; }
+
+.result-banner {
+  display: none; margin-top: 14px; border-radius: 12px; padding: 16px; text-align: center;
+  font-size: 18px; font-weight: 800;
+}
+.result-banner.win { display: block; background: linear-gradient(135deg, rgba(240,180,41,.3), rgba(240,180,41,.12)); border: 1px solid var(--gold); color: var(--gold); animation: pop .4s ease; }
+.result-banner.lose { display: block; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+@keyframes pop { 0% { transform: scale(.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* 奖级公示 */
+.prize-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.prize-tabs button { padding: 6px 14px; font-size: 13px; }
+.prize-tabs button.on { background: var(--accent); color: #fff; border-color: transparent; }
+.prize-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.prize-table th, .prize-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.prize-table th { color: var(--muted); font-weight: 500; }
+.prize-table td.amt { color: var(--gold); font-weight: 700; }
+
+.bigwin-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.bigwin-row:last-child { border-bottom: none; }
+.bigwin-row .bw-user { font-weight: 700; }
+.bigwin-row .bw-amt { color: var(--gold); font-weight: 800; }
+.bigwin-row .bw-time { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+.my-card-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.my-card-row:last-child { border-bottom: none; }
+.my-card-row .mc-face { font-weight: 800; color: var(--gold); min-width: 52px; }
+.my-card-row .mc-state { margin-left: auto; font-size: 12px; }
+.my-card-row .mc-state.win { color: var(--green); font-weight: 700; }
+.my-card-row .mc-state.lose { color: var(--muted); }
+.my-card-row .mc-state.pending { color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+.muted-empty { text-align: center; color: var(--muted); padding: 16px 0; font-size: 13px; }
+.status { margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="topbar-left" style="display:flex;align-items:center;gap:12px">
+      <a class="back-btn" href="/" id="backBtn">← 大厅</a>
+      <div class="title">🪙 刮刮乐</div>
+    </div>
+    <span class="badge" id="rtpBadge">返奖率 65%</span>
+  </div>
+  <div id="authBar"></div>
+
+  <!-- 玩法 / 今日额度 -->
+  <div class="gg-banner">
+    <div class="col">
+      <div class="label">玩法</div>
+      <div class="meta" style="margin-top:4px">刮开涂层：<b>我的号码</b>命中任一<b>中奖号码</b>即中该格奖金，多格兼中兼得；<b>💰 符号</b>中奖翻 <b>10</b> 倍</div>
+    </div>
+    <div class="col" style="max-width:200px">
+      <div class="label">今日已中 / 每日上限</div>
+      <div class="val" id="todayCap" style="font-size:16px">—</div>
+    </div>
+  </div>
+
+  <!-- 面值选择 + 购买 -->
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">选择面值 <span class="hint">面值越大中奖率越高、头奖越大</span></div>
+    <div class="denom-row" id="denomRow"></div>
+    <button id="btnBuy" class="primary buy-btn" disabled>请先登录</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- 刮卡区 -->
+  <div class="card" id="scratchCard">
+    <div class="ticket-face" id="ticketFace">
+      <div class="tf-head"><span class="face-val" id="tfFaceVal">$5</span><span class="tf-id" id="tfId"></span></div>
+      <div class="tf-label">— 中奖号码 —</div>
+      <div class="win-nums" id="winNums"></div>
+      <div class="tf-label">— 我的号码 · 刮开涂层 —</div>
+      <div class="cell-zone" id="cellZone">
+        <div class="cell-grid" id="cellGrid"></div>
+        <canvas id="scratchCanvas"></canvas>
+      </div>
+    </div>
+    <div class="result-banner" id="resultBanner"></div>
+    <div class="tf-actions">
+      <button id="btnRevealAll">⚡ 一键刮开</button>
+      <button id="btnNext" class="primary" style="display:none">🪙 再来一张</button>
+    </div>
+  </div>
+
+  <!-- 奖级公示 -->
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">奖级公示 <span class="hint">返奖率 65%，与真实彩票一致</span></div>
+    <div class="prize-tabs" id="prizeTabs"></div>
+    <table class="prize-table">
+      <thead><tr><th>奖项</th><th>奖金</th></tr></thead>
+      <tbody id="prizeBody"></tbody>
+    </table>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px" id="prizeNote"></div>
+  </div>
+
+  <!-- 最近大奖 -->
+  <div class="card" id="bigwinCard" style="display:none">
+    <div class="sec-title" style="margin-top:0">🎉 最近大奖</div>
+    <div id="bigwins"></div>
+  </div>
+
+  <!-- 我的刮刮乐 -->
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">我的刮刮乐 <span class="hint" id="myHint"></span></div>
+    <div id="myCards"><div class="muted-empty">登录后查看我的刮刮乐</div></div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+const gid = new URLSearchParams(location.search).get('gid');
+document.getElementById('backBtn').href = '/' + (gid ? '?gid=' + encodeURIComponent(gid) : '');
+
+let INFO = null;          // /api/scratch/info
+let selDenom = 0;         // 当前选中面值
+let curCard = null;       // 当前刮的卡（含 cells/winNums）
+let settled = false;      // 当前卡是否已结算
+let revealed = false;     // 涂层是否已全部揭开
+let busy = false;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => '$' + Number(n).toLocaleString();
+
+function setStatus(t, cls) { const s = $('status'); s.textContent = t || ''; s.className = 'status' + (cls ? ' ' + cls : ''); }
+
+// ---------- 面值选择 ----------
+async function loadInfo() {
+  try {
+    INFO = await (await fetch('/api/scratch/info')).json();
+    document.getElementById('rtpBadge').textContent = '返奖率 ' + Math.round(INFO.returnRate * 100) + '%';
+    const row = $('denomRow');
+    row.innerHTML = '';
+    INFO.denoms.forEach((d) => {
+      const el = document.createElement('div');
+      el.className = 'denom';
+      el.dataset.d = d.denom;
+      el.innerHTML = '<div class="face">$' + d.denom + '</div>' +
+        '<div class="sub">中奖率 <b>' + d.winRate + '%</b><br>最高 ' + fmt(d.topPrize) + '</div>';
+      el.onclick = () => selectDenom(d.denom);
+      row.appendChild(el);
+    });
+    if (!selDenom || !INFO.denoms.some(d => d.denom === selDenom)) selDenom = INFO.denoms[0].denom;
+    selectDenom(selDenom);
+    buildPrizeTabs();
+    if (INFO.bigWins && INFO.bigWins.length) renderBigWins(INFO.bigWins);
+    if (INFO.enabled === false) { $('btnBuy').disabled = true; setStatus('刮刮乐维护中，暂停销售', 'err'); }
+  } catch (e) { setStatus('加载配置失败', 'err'); }
+}
+function selectDenom(d) {
+  selDenom = d;
+  document.querySelectorAll('.denom').forEach(el => el.classList.toggle('on', Number(el.dataset.d) === d));
+  refreshBuyBtn();
+}
+function refreshBuyBtn() {
+  const btn = $('btnBuy');
+  if (!GCAuth.getToken()) { btn.disabled = true; btn.textContent = '请先登录'; return; }
+  if (INFO && INFO.enabled === false) { btn.disabled = true; btn.textContent = '暂停销售'; return; }
+  btn.disabled = false;
+  btn.textContent = '🪙 购买一张 $' + selDenom + ' 刮刮乐';
+}
+
+// ---------- 购买 ----------
+async function buy() {
+  if (busy) return;
+  const token = GCAuth.getToken();
+  if (!token) { alert('请先登录 NewAPI 账号'); return; }
+  if (curCard && !settled && !confirm('当前还有一张没刮完的卡，确定放弃它去买新卡吗？\n（未刮的卡 24 小时后自动结算）')) return;
+  busy = true; $('btnBuy').disabled = true;
+  setStatus('购票中…', 'turn');
+  try {
+    const r = await fetch('/api/scratch/buy', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, denom: selDenom }),
+    });
+    const j = await r.json();
+    if (j.code !== 'ok') { setStatus(j.error || '购买失败', 'err'); return; }
+    setStatus('');
+    openCard(j.card);
+    loadMy();
+    GCAuth.refreshBalance && GCAuth.refreshBalance();
+  } catch (e) { setStatus('网络错误，请稍后重试', 'err'); }
+  finally { busy = false; refreshBuyBtn(); }
+}
+
+// ---------- 卡面渲染 ----------
+function openCard(card) {
+  curCard = card; settled = card.settled; revealed = false;
+  $('scratchCard').style.display = 'block';
+  $('resultBanner').className = 'result-banner'; $('resultBanner').textContent = '';
+  $('btnNext').style.display = 'none';
+  $('btnRevealAll').style.display = settled ? 'none' : 'block';
+  $('tfFaceVal').textContent = '$' + card.denom;
+  $('tfId').textContent = 'NO.' + String(card.id).padStart(8, '0');
+  $('winNums').innerHTML = card.winNums.map(n => '<div class="win-num">' + n + '</div>').join('');
+  const grid = $('cellGrid');
+  grid.innerHTML = '';
+  card.cells.forEach((c) => {
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.innerHTML = (c.x10 ? '<div class="cx10">💰</div>' : '') +
+      '<div class="cnum">' + c.num + '</div><div class="cprize">' + fmt(c.prize) + '</div>';
+    grid.appendChild(el);
+  });
+  if (settled) { hideCoating(); markWinCells(); showResult(card.winUsd, true); }
+  else initCoating();
+  $('scratchCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---------- 刮涂层 ----------
+let scCtx = null, scDown = false, scLast = null, scCheckAt = 0;
+function initCoating() {
+  const zone = $('cellZone'), cv = $('scratchCanvas');
+  cv.classList.remove('faded');
+  const dpr = window.devicePixelRatio || 1;
+  const w = zone.clientWidth, h = zone.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  scCtx = cv.getContext('2d');
+  scCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 金属涂层
+  const g = scCtx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, '#c8ccd4'); g.addColorStop(.45, '#9aa0ab'); g.addColorStop(.55, '#d6dae1'); g.addColorStop(1, '#a8adb8');
+  scCtx.fillStyle = g;
+  scCtx.fillRect(0, 0, w, h);
+  // 斜纹
+  scCtx.strokeStyle = 'rgba(255,255,255,.25)'; scCtx.lineWidth = 6;
+  for (let x = -h; x < w + h; x += 18) { scCtx.beginPath(); scCtx.moveTo(x, 0); scCtx.lineTo(x + h, h); scCtx.stroke(); }
+  scCtx.fillStyle = 'rgba(60,64,72,.75)';
+  scCtx.font = '700 15px sans-serif'; scCtx.textAlign = 'center';
+  scCtx.fillText('刮 开 涂 层', w / 2, h / 2 + 5);
+  cv.onpointerdown = (e) => { scDown = true; scLast = rel(e); scratchAt(scLast); try { cv.setPointerCapture(e.pointerId); } catch (_) {} };
+  cv.onpointermove = (e) => { if (!scDown) return; const p = rel(e); scratchLine(scLast, p); scLast = p; maybeCheck(); };
+  cv.onpointerup = cv.onpointercancel = () => { scDown = false; checkRatio(); };
+}
+function rel(e) {
+  const r = $('scratchCanvas').getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function scratchAt(p) {
+  scCtx.globalCompositeOperation = 'destination-out';
+  scCtx.fillStyle = '#000'; // 必须不透明：半透明填充只会让涂层变浅而不是刮掉
+  scCtx.beginPath(); scCtx.arc(p.x, p.y, 24, 0, 7); scCtx.fill();
+}
+function scratchLine(a, b) {
+  scCtx.globalCompositeOperation = 'destination-out';
+  scCtx.strokeStyle = '#000';
+  scCtx.lineWidth = 48; scCtx.lineCap = 'round';
+  scCtx.beginPath(); scCtx.moveTo(a.x, a.y); scCtx.lineTo(b.x, b.y); scCtx.stroke();
+}
+function maybeCheck() { const now = Date.now(); if (now - scCheckAt > 300) { scCheckAt = now; checkRatio(); } }
+function checkRatio() {
+  if (revealed || !scCtx) return;
+  const cv = $('scratchCanvas');
+  const step = 16; // 抽样步长，控制性能
+  const data = scCtx.getImageData(0, 0, cv.width, cv.height).data;
+  let clear = 0, total = 0;
+  for (let i = 3; i < data.length; i += 4 * step) { total++; if (data[i] === 0) clear++; }
+  if (clear / total >= 0.55) revealAll();
+}
+function hideCoating() { const cv = $('scratchCanvas'); cv.classList.add('faded'); revealed = true; }
+function revealAll() {
+  if (revealed || settled) return;
+  hideCoating();
+  doSettle();
+}
+
+// ---------- 结算 ----------
+function markWinCells() {
+  if (!curCard) return;
+  const wins = new Set(curCard.winNums);
+  $('cellGrid').querySelectorAll('.cell').forEach((el, i) => {
+    if (wins.has(curCard.cells[i].num)) el.classList.add('win');
+  });
+}
+async function doSettle() {
+  if (settled || !curCard) return;
+  const token = GCAuth.getToken();
+  if (!token) return;
+  try {
+    const r = await fetch('/api/scratch/settle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, cardId: curCard.id }),
+    });
+    const j = await r.json();
+    if (j.code !== 'ok') { setStatus(j.error || '结算失败', 'err'); return; }
+    settled = true;
+    curCard = j.card;
+    markWinCells();
+    showResult(j.winUsd, false);
+    loadMy();
+    GCAuth.refreshBalance && GCAuth.refreshBalance();
+  } catch (e) { setStatus('结算网络错误', 'err'); }
+}
+function showResult(winUsd, silent) {
+  const b = $('resultBanner');
+  if (winUsd > 0) {
+    b.className = 'result-banner win';
+    b.innerHTML = '🎉 恭喜中奖 <span style="font-size:24px;margin:0 4px">' + fmt(winUsd) + '</span>！' + (silent ? '' : '奖金已到账');
+  } else {
+    b.className = 'result-banner lose';
+    b.textContent = '很遗憾，未中奖 · 再来一张试试手气';
+  }
+  $('btnNext').style.display = 'block';
+  $('btnRevealAll').style.display = 'none';
+}
+
+// ---------- 奖级公示 ----------
+let prizeTabDenom = 0;
+function buildPrizeTabs() {
+  const box = $('prizeTabs');
+  box.innerHTML = '';
+  INFO.denoms.forEach((d) => {
+    const b = document.createElement('button');
+    b.textContent = '$' + d.denom;
+    b.onclick = () => { prizeTabDenom = d.denom; renderPrizeTable(); };
+    box.appendChild(b);
+  });
+  prizeTabDenom = INFO.denoms[0].denom;
+  renderPrizeTable();
+}
+function renderPrizeTable() {
+  const d = INFO.denoms.find(x => x.denom === prizeTabDenom);
+  if (!d) return;
+  document.querySelectorAll('#prizeTabs button').forEach(b => b.classList.toggle('on', b.textContent === '$' + prizeTabDenom));
+  $('prizeBody').innerHTML = d.prizes.map((p, i) =>
+    '<tr><td>' + (i + 1) + ' 等奖</td><td class="amt">' + fmt(p) + (p / d.denom >= 100 ? '（' + (p / d.denom).toLocaleString() + ' 倍）' : '') + '</td></tr>'
+  ).join('');
+  $('prizeNote').textContent = '$' + d.denom + ' 面值：中奖率约 ' + d.winRate + '%，最高奖金 ' + fmt(d.topPrize) + '。中奖金额随机拆分为 1~3 格，兼中兼得。';
+}
+
+// ---------- 最近大奖 ----------
+function renderBigWins(list) {
+  $('bigwinCard').style.display = 'block';
+  $('bigwins').innerHTML = list.map(w =>
+    '<div class="bigwin-row"><span class="bw-user">' + esc(w.username || '玩家') + '</span>' +
+    '<span>$' + w.denom + ' 刮中</span><span class="bw-amt">' + fmt(w.winUsd) + '</span>' +
+    '<span class="bw-time">' + new Date(w.at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span></div>'
+  ).join('');
+}
+function esc(s) { return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+// ---------- 我的刮刮乐 ----------
+async function loadMy() {
+  const token = GCAuth.getToken();
+  const box = $('myCards');
+  $('todayCap').textContent = '—';
+  if (!token) { box.innerHTML = '<div class="muted-empty">登录后查看我的刮刮乐</div>'; refreshBuyBtn(); return; }
+  try {
+    const j = await (await fetch('/api/scratch/my?token=' + encodeURIComponent(token))).json();
+    if (j.error) { box.innerHTML = '<div class="muted-empty">' + esc(j.error) + '</div>'; return; }
+    $('todayCap').textContent = fmt(j.todayWonUsd) + (j.dailyCapUsd > 0 ? ' / ' + fmt(j.dailyCapUsd) : ' / 不限');
+    $('myHint').textContent = j.unsettled > 0 ? j.unsettled + ' 张未刮开（24h 未刮自动结算）' : '';
+    if (!j.cards || !j.cards.length) { box.innerHTML = '<div class="muted-empty">暂无记录，买一张试试手气</div>'; return; }
+    box.innerHTML = '';
+    j.cards.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'my-card-row';
+      let state;
+      if (!c.settled) state = '<span class="mc-state pending">未刮开 · 点击继续刮</span>';
+      else if (c.winUsd > 0) state = '<span class="mc-state win">🎉 中 ' + fmt(c.winUsd) + '</span>';
+      else state = '<span class="mc-state lose">未中奖</span>';
+      row.innerHTML = '<span class="mc-face">$' + c.denom + '</span>' +
+        '<span style="color:var(--muted)">NO.' + String(c.id).padStart(8, '0') + '</span>' +
+        '<span style="color:var(--muted);font-size:12px">' + new Date(c.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>' + state;
+      if (!c.settled) row.onclick = () => openCard(c);
+      box.appendChild(row);
+    });
+  } catch (e) { box.innerHTML = '<div class="muted-empty">加载失败</div>'; }
+}
+
+$('btnBuy').onclick = buy;
+$('btnRevealAll').onclick = revealAll;
+$('btnNext').onclick = () => { $('scratchCard').style.display = 'none'; curCard = null; window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+GCAuth.renderAuthBar(document.getElementById('authBar'), () => { loadMy(); refreshBuyBtn(); });
+loadInfo();
+loadMy();
+refreshBuyBtn();
+</script>
+</body>
+</html>
